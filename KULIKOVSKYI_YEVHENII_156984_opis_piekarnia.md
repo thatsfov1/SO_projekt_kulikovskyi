@@ -1,3 +1,5 @@
+https://github.com/thatsfov1/SO_projekt_kulikovskyi
+
 **Temat 12 - Piekarnia**
 Piekarnia produkuje P różnych produktów (P>10), każdy w innej cenie i na bieżąco sprzedaje je w
 samoobsługowym sklepie firmowym. Produkty bezpośrednio po wypieku (losowa liczba sztuk różnych
