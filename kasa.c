@@ -1,12 +1,11 @@
 #include "struktury.h"
 
-int msgid, shmid, semid;
+int shmid, semid, msgid;
 struct SharedMemory *shm;
-
 void obsluz_klienta(int kasa_id, struct msg_buf *msg) {
     struct sembuf conv_op = {SEM_CONV, -1, 0};
     semop(semid, &conv_op, 1);
-
+    
     float suma = 0;
     printf("Kasa %d: rozpoczecie obslugi\n", kasa_id);
     
@@ -21,7 +20,6 @@ void obsluz_klienta(int kasa_id, struct msg_buf *msg) {
                     p->head = (p->head + 1) % p->pojemnosc;
                     p->liczba_prod--;
                     shm->sprzedane[prod_id]++;
-                    suma += 2.50; // Example price
                 }
             }
         }
@@ -29,62 +27,43 @@ void obsluz_klienta(int kasa_id, struct msg_buf *msg) {
     
     conv_op.sem_op = 1;
     semop(semid, &conv_op, 1);
-
-    struct sembuf mem_op = {SEM_MEM, -1, 0};
-    semop(semid, &mem_op, 1);
-    shm->utarg[kasa_id] += suma;
-    mem_op.sem_op = 1;
-    semop(semid, &mem_op, 1);
     
     printf("Kasa %d: zakonczenie obslugi, suma: %.2f\n", kasa_id, suma);
 }
 
 void kasa_praca(int kasa_id) {
+    struct sembuf kasa_op = {SEM_KASY, -1, 0};
     struct msg_buf msg;
     
     while(1) {
-        printf("Kasa %d: otwarta, czekam na zamówienie\n", kasa_id);
-        if(msgrcv(msgid, &msg, sizeof(struct msg_buf) - sizeof(long), kasa_id + 1, 0) == -1) {
-            perror("Blad msgrcv");
+        // Sprawdzenie czy kasa powinna byc czynna
+        struct sembuf mem_op = {SEM_MEM, -1, 0};
+        semop(semid, &mem_op, 1);
+        
+        int liczba_klientow = shm->liczba_klientow;
+        int potrzebne_kasy = (liczba_klientow + K - 1) / K;
+        
+        if(kasa_id >= potrzebne_kasy) {
+            printf("Kasa %d: zamknieta\n", kasa_id);
+            mem_op.sem_op = 1;
+            semop(semid, &mem_op, 1);
+            sleep(5);
             continue;
         }
         
-        obsluz_klienta(kasa_id, &msg);
+        mem_op.sem_op = 1;
+        semop(semid, &mem_op, 1);
+        
+        // Obsluga klienta
+        if(msgrcv(msgid, &msg, sizeof(msg.zakupy), 1, 0) != -1) {
+            obsluz_klienta(kasa_id, &msg);
+        }
     }
 }
 
 int main(int argc, char *argv[]) {
     if(argc != 2) {
         printf("Uzycie: %s kasa_id\n", argv[0]);
-        exit(1);
-    }
-
-    key_t key = ftok(".", 'A');
-    if (key == -1) {
-        perror("Blad ftok");
-        exit(1);
-    }
-
-    shmid = shmget(key, sizeof(struct SharedMemory), 0666);
-    if (shmid == -1) {
-        perror("Blad shmget");
-        exit(1);
-    }
-    shm = (struct SharedMemory *)shmat(shmid, NULL, 0);
-    if (shm == (void *)-1) {
-        perror("Blad shmat");
-        exit(1);
-    }
-
-    semid = semget(key, TOTAL_SEMS, 0666);
-    if (semid == -1) {
-        perror("Blad semget");
-        exit(1);
-    }
-
-    msgid = msgget(key, 0666);
-    if (msgid == -1) {
-        perror("Blad msgget");
         exit(1);
     }
 

@@ -57,8 +57,6 @@ struct msg_buf {
 #define SEM_CONV 1      // dostep do podajnikow
 #define SEM_MEM 2       // dostep do pamieci wspoldzielonej
 #define SEM_KASY 3      // dostep do kas
-#define SEM_NEW_CLIENT 4 // nowi klienci
-#define TOTAL_SEMS 5    // ilosc semaforow
 
 extern int shmid, semid, msgid;
 extern struct SharedMemory *shm;

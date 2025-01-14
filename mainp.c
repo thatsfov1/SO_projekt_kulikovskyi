@@ -1,6 +1,6 @@
 #include "struktury.h"
 
-int msgid, shmid, semid;
+int shmid, semid, msgid;
 struct SharedMemory *shm;
 
 void cleanup() {
@@ -24,32 +24,32 @@ void koniec(int sig) {
 void obsluz_sygnal(int typ) {
     struct sembuf op = {SEM_MEM, -1, 0};
     semop(semid, &op, 1);
-
+    
     if(typ == 1) {  // ewakuacja
         shm->ewakuacja = 1;
         printf("MAIN: Ogłoszono ewakuację!\n");
     } else if(typ == 2) {  // inwentaryzacja
         shm->inwentaryzacja = 1;
         printf("MAIN: Rozpoczynam inwentaryzację.\n");
-
+        
         // Podsumowanie sprzedaży
         printf("\nPodsumowanie sprzedaży:\n");
         for(int i = 0; i < P; i++) {
             printf("Produkt %d: sprzedano %d sztuk\n", i, shm->sprzedane[i]);
         }
-
+        
         printf("\nUtarg na kasach:\n");
         for(int i = 0; i < 3; i++) {
             printf("Kasa %d: %lld zł\n", i, shm->utarg[i]);
         }
     }
-
+    
     op.sem_op = 1;
     semop(semid, &op, 1);
 }
 
 int main() {
-    // Obsluga sygnalow
+    // Obsługa sygnałów
     struct sigaction act;
     act.sa_handler = koniec;
     sigemptyset(&act.sa_mask);
@@ -59,12 +59,12 @@ int main() {
     // Tworzenie kluczy i zasobów IPC
     key_t key = ftok(".", 'A');
     if(key == -1) {
-        perror("Blad ftok");
+        perror("BLad ftok");
         exit(1);
     }
 
     // Pamiec wspoldzielona
-    shmid = shmget(key, sizeof(struct SharedMemory), IPC_CREAT | 0666);
+    shmid = shmget(key, sizeof(struct SharedMemory), IPC_CREAT | IPC_EXCL | 0666);
     if(shmid == -1) {
         perror("Blad shmget");
         exit(1);
@@ -76,16 +76,20 @@ int main() {
     }
 
     // Semafory
-    semid = semget(key, 4, IPC_CREAT | 0666);
+    semid = semget(key, 4, IPC_CREAT | IPC_EXCL | 0666);
     if(semid == -1) {
         perror("Blad semget");
         exit(1);
     }
-    unsigned short sem_vals[4] = {N, 1, 1, 3};
-    semctl(semid, 0, SETALL, sem_vals);
+    
+    // Inicjalizacja semaforow
+    semctl(semid, SEM_SHOP, SETVAL, N);
+    semctl(semid, SEM_CONV, SETVAL, 1);
+    semctl(semid, SEM_MEM, SETVAL, 1);
+    semctl(semid, SEM_KASY, SETVAL, 3);
 
     // Kolejka komunikatow
-    msgid = msgget(key, IPC_CREAT | 0666);
+    msgid = msgget(key, IPC_CREAT | IPC_EXCL | 0666);
     if(msgid == -1) {
         perror("Blad msgget");
         exit(1);
@@ -96,7 +100,7 @@ int main() {
     shm->ewakuacja = 0;
     shm->inwentaryzacja = 0;
     shm->czas_otwarcia = time(NULL);
-
+    
     for(int i = 0; i < P; i++) {
         shm->podajniki[i].pojemnosc = 10 + rand() % 10;
         shm->podajniki[i].liczba_prod = 0;
@@ -104,9 +108,20 @@ int main() {
         shm->podajniki[i].head = shm->podajniki[i].tail = 0;
         shm->sprzedane[i] = 0;
     }
-
+    
     for(int i = 0; i < 3; i++) {
+        shm->czynne_kasy[i] = 1;
         shm->utarg[i] = 0;
+    }
+
+    // Inicjalizacja kolejki pustych komunikatów
+    struct msg_buf msg;
+    msg.mtype = 1;
+    for(int i = 0; i < N; i++) {
+        if(msgsnd(msgid, &msg, sizeof(msg.zakupy), 0) == -1) {
+            perror("Blad msgsnd");
+            exit(1);
+        }
     }
 
     // Uruchomienie procesow piekarzy
@@ -131,6 +146,13 @@ int main() {
 
     // Glowna petla programu
     while(1) {
+        // Sprawdzenie czasu pracy
+        if(time(NULL) - shm->czas_otwarcia >= CZAS_PRACY) {
+            printf("MAIN: Koniec czasu pracy piekarni.\n");
+            obsluz_sygnal(2);  // Inwentaryzacja na koniec dnia
+            break;
+        }
+
         // Symulacja przychodzenia klientow
         if(fork() == 0) {
             execl("./klient", "klient", NULL);
