@@ -1,11 +1,12 @@
 #include "struktury.h"
 
-int shmid, semid, msgid;
+int msgid, shmid, semid;
 struct SharedMemory *shm;
+
 void obsluz_klienta(int kasa_id, struct msg_buf *msg) {
     struct sembuf conv_op = {SEM_CONV, -1, 0};
     semop(semid, &conv_op, 1);
-    
+
     float suma = 0;
     printf("Kasa %d: rozpoczecie obslugi\n", kasa_id);
     
@@ -20,6 +21,7 @@ void obsluz_klienta(int kasa_id, struct msg_buf *msg) {
                     p->head = (p->head + 1) % p->pojemnosc;
                     p->liczba_prod--;
                     shm->sprzedane[prod_id]++;
+                    suma += 2.50; // Example price
                 }
             }
         }
@@ -27,51 +29,26 @@ void obsluz_klienta(int kasa_id, struct msg_buf *msg) {
     
     conv_op.sem_op = 1;
     semop(semid, &conv_op, 1);
+
+    struct sembuf mem_op = {SEM_MEM, -1, 0};
+    semop(semid, &mem_op, 1);
+    shm->utarg[kasa_id] += suma;
+    mem_op.sem_op = 1;
+    semop(semid, &mem_op, 1);
     
     printf("Kasa %d: zakonczenie obslugi, suma: %.2f\n", kasa_id, suma);
 }
 
 void kasa_praca(int kasa_id) {
-    struct sembuf kasa_op = {SEM_KASY, -1, 0};
     struct msg_buf msg;
     
     while(1) {
-        // Sprawdzenie czy kasa powinna byc czynna
-        struct sembuf mem_op = {SEM_MEM, -1, 0};
-        printf("Kasa %d: przed semop SEM_MEM\n", kasa_id);
-        semop(semid, &mem_op, 1);
-        printf("Kasa %d: po semop SEM_MEM\n", kasa_id);
-        
-        int liczba_klientow = shm->liczba_klientow;
-        int potrzebne_kasy = (liczba_klientow + K - 1) / K;
-        printf("Kasa %d: liczba_klientow = %d, potrzebne_kasy = %d\n", kasa_id, liczba_klientow, potrzebne_kasy);
-        
-        if(kasa_id >= potrzebne_kasy) {
-            printf("Kasa %d: zamknieta\n", kasa_id);
-            mem_op.sem_op = 1;
-            printf("Kasa %d: przed semop SEM_MEM (zwolnienie semafora)\n", kasa_id);
-            semop(semid, &mem_op, 1);
-            printf("Kasa %d: po semop SEM_MEM (zwolnienie semafora)\n", kasa_id);
-            struct sembuf new_client_op = {SEM_NEW_CLIENT, -1, 0};
-            printf("Kasa %d: czeka na nowego klienta\n", kasa_id);
-            semop(semid, &new_client_op, 1);
-            printf("Kasa %d: nowy klient, sprawdzanie liczby klientów\n", kasa_id);
+        printf("Kasa %d: otwarta, czekam na zamówienie\n", kasa_id);
+        if(msgrcv(msgid, &msg, sizeof(struct msg_buf) - sizeof(long), kasa_id + 1, 0) == -1) {
+            perror("Blad msgrcv");
             continue;
         }
         
-        mem_op.sem_op = 1;
-        printf("Kasa %d: przed semop SEM_MEM (zwolnienie semafora)\n", kasa_id);
-        semop(semid, &mem_op, 1);
-        printf("Kasa %d: po semop SEM_MEM (zwolnienie semafora)\n", kasa_id);
-        
-        
-        // Obsluga klienta
-        printf("Kasa %d: oczekuje na klienta\n", kasa_id);
-        if(msgrcv(msgid, &msg, sizeof(msg.zakupy), kasa_id+1, 0) == -1) {
-            perror("Blad msgrcv");
-            exit(1);
-        }
-        printf("Kasa %d: odebrała zamówienie od klienta\n", kasa_id);
         obsluz_klienta(kasa_id, &msg);
     }
 }
@@ -93,14 +70,13 @@ int main(int argc, char *argv[]) {
         perror("Blad shmget");
         exit(1);
     }
-
     shm = (struct SharedMemory *)shmat(shmid, NULL, 0);
     if (shm == (void *)-1) {
         perror("Blad shmat");
         exit(1);
     }
 
-    semid = semget(key, 5, 0666);
+    semid = semget(key, TOTAL_SEMS, 0666);
     if (semid == -1) {
         perror("Blad semget");
         exit(1);

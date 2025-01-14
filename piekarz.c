@@ -1,10 +1,11 @@
 #include "struktury.h"
 
-int shmid, semid, msgid;
+int msgid, shmid, semid;
 struct SharedMemory *shm;
+
 void dodaj_do_podajnika(int pid, int produkt_id, int ilosc) {
     struct sembuf op = {SEM_CONV, -1, 0};
-    semop(semid, &op, 1); // blokada dostepu do podajnikow
+    semop(semid, &op, 1);
 
     struct Podajnik *p = &shm->podajniki[produkt_id];
     
@@ -21,7 +22,7 @@ void dodaj_do_podajnika(int pid, int produkt_id, int ilosc) {
     }
 
     op.sem_op = 1;
-    semop(semid, &op, 1); // zwolnienie blokady
+    semop(semid, &op, 1);
 }
 
 void sprawdz_stan(int pid) {
@@ -48,14 +49,18 @@ void sprawdz_stan(int pid) {
 
 int main() {
     key_t key = ftok(".", 'A');
+    if (key == -1) {
+        perror("Blad ftok");
+        exit(1);
+    }
 
-    shmid = shmget(key, sizeof(struct SharedMemory), IPC_CREAT | 0666);
-    if(shmid == -1) {
+    shmid = shmget(key, sizeof(struct SharedMemory), 0666);
+    if (shmid == -1) {
         perror("Blad shmget");
         exit(1);
     }
     shm = (struct SharedMemory *)shmat(shmid, NULL, 0);
-    if(shm == (void *)-1) {
+    if (shm == (void *)-1) {
         perror("Blad shmat");
         exit(1);
     }
@@ -63,6 +68,12 @@ int main() {
     semid = semget(key, 4, 0666);
     if (semid == -1) {
         perror("Blad semget");
+        exit(1);
+    }
+
+    msgid = msgget(key, 0666);
+    if (msgid == -1) {
+        perror("Blad msgget");
         exit(1);
     }
 
@@ -74,9 +85,10 @@ int main() {
     while(1) {
         sprawdz_stan(pid);
         
-        sleep(rand() % 5 + 1); // losowy czas produkcji
         int ilosc = rand() % 5 + 1; // losowa liczba sztuk (1-5)
         dodaj_do_podajnika(pid, pid, ilosc);
+        
+        sleep(rand() % 5 + 1); // losowy czas produkcji
     }
     
     return 0;
