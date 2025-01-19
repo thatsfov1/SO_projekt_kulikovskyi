@@ -11,20 +11,9 @@
 #include "funkcje.h"
 
 Sklep *sklep;
-int msqid;
 
 void cleanup_handler(int signum) {
-    // if (sklep->inwentaryzacja) {
-    //     printf("Piekarz: Za dzień wyprodukowano: ");
-    //     for (int i = 0; i < MAX_PRODUKTOW; i++) {
-    //         if (sklep->statystyki_piekarza.wyprodukowane[i] > 0) {
-    //             printf("%s %d szt. ", sklep->podajniki[i].produkt.nazwa, sklep->statystyki_piekarza.wyprodukowane[i]);
-    //         }
-    //     }
-    //     printf("\n");
-    // }
     shmdt(sklep);
-    msgctl(msqid, IPC_RMID, NULL);
     exit(0);
 }
 void evacuation_handler(int signum) {
@@ -34,22 +23,9 @@ void evacuation_handler(int signum) {
 
 void wypiekaj_produkty(Sklep *sklep, int sem_id) {
     srand(time(NULL));
-    // key_t key = ftok("/tmp", 4);
-    // msqid = msgget(key, 0666 | IPC_CREAT);
-    // if (msqid == -1) {
-    //     perror("msgget");
-    //     exit(1);
-    // }
     message_buf rbuf;
 
     while (1) {
-        // // Sprawdzenie, czy sklep jest zamknięty
-        // if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1) {
-        //     if (strcmp(rbuf.mtext, "ZAMKNIJ") == 0) {
-        //         printf("Piekarz: Otrzymałem komunikat o zamknięciu sklepu, kończę pracę.\n");
-        //         break;
-        //     }
-        // }
         for (int i = 0; i < MAX_PRODUKTOW; i++) {
             sem_wait(sem_id, i);  // Czekamy na dostęp do podajnika
 
@@ -81,26 +57,11 @@ void wypiekaj_produkty(Sklep *sklep, int sem_id) {
         sleep(10);  // Piekarz czeka 10 sekund przed kolejnym wypiekiem
 
     }
-    // if (sklep->inwentaryzacja) {
-    //     printf("Za dzien wyprodukowano: ");
-    //     for (int i = 0; i < MAX_PRODUKTOW; i++) {
-    //         if (sklep->statystyki_piekarza.wyprodukowane[i] > 0) {
-    //             printf("%s %d szt. ", sklep->podajniki[i].produkt.nazwa, sklep->statystyki_piekarza.wyprodukowane[i]);
-    //         }
-    //     }
-    //     printf("\n");
-    // }
-     msgctl(msqid, IPC_RMID, NULL);
-}
-
-void inwentaryzacja_handler(int signum) {
-    sklep->inwentaryzacja = 1;
-    printf("Piekarz: Otrzymałem informację o inwentaryzacji.\n");
 }
 
 int main (){
     signal(SIGUSR1, evacuation_handler);
-    signal(SIGUSR2, inwentaryzacja_handler);
+
     int shm_id = shmget(SHM_KEY, sizeof(Sklep), 0666);
     if (shm_id < 0) {
         perror("shmget");

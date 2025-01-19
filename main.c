@@ -14,7 +14,6 @@
 int shm_id;
 int sem_id;
 int kosz_id;
-int msqid[MAX_KASJEROW];
 Sklep *sklep;
 Kosz *kosz;
 
@@ -27,14 +26,11 @@ void cleanup(int signum) {
     // Czyszczenie zasobów
     shmdt(sklep);
     shmdt(kosz);
+
     shmctl(shm_id, IPC_RMID, NULL);
     shmctl(kosz_id, IPC_RMID, NULL);
     semctl(sem_id, 0, IPC_RMID);
 
-    for (int i = 0; i < MAX_KASJEROW; i++) {
-        msgctl(msqid[i], IPC_RMID, NULL);
-    }
-    printf("Wszystkie zasoby zostały zwolnione.\n");
     exit(0);
 }
 
@@ -63,13 +59,13 @@ void init_produkty(Sklep *sklep) {
     }
 }
 
-void init_kosz(Kosz *kosz) {
+void init_kosz(Kosz *kosz, Sklep *sklep) {
     memset(kosz, 0, sizeof(Kosz));
     for (int i = 0; i < MAX_PRODUKTOW; i++) {
         kosz->produkty[i].id = i;
-        strcpy(kosz->produkty[i].nazwa, "");
+        strcpy(kosz->produkty[i].nazwa, sklep->podajniki[i].produkt.nazwa); // Copy product names from Sklep
         kosz->produkty[i].ilosc = 0;
-        kosz->produkty[i].cena = 0.0;
+        kosz->produkty[i].cena = sklep->podajniki[i].produkt.cena;
     }
 }
 
@@ -119,7 +115,7 @@ int main() {
     sklep->ilosc_klientow = 0;
     sklep->inwentaryzacja = 0;
     init_produkty(sklep);
-    init_kosz(kosz);
+    init_kosz(kosz, sklep);
     printf("Nacisnij 'e' dla wysłania sygnału o ewakuację.\n");
 
     // Uruchamianie procesów
@@ -139,46 +135,11 @@ int main() {
         execl("./klient", "./klient", NULL);
     }
 
-
-    for (int i = 0; i < MAX_KASJEROW; i++) {
-        key_t key = ftok("/tmp", i + 1);
-        msqid[i] = msgget(key, 0666 | IPC_CREAT);
-        if (msqid[i] == -1) {
-            perror("msgget");
-            exit(1);
-        }
-    }
-
-    
     sleep(CZAS_PRACY);
     //  Wysłanie sygnału zamknięcia sklepu
     printf("Sklep zamyka się, wszyscy klienci w kolejce będą obsłużeni\n");
     
     kill(0, SIGTERM);
-
-    //Wysłanie komunikatu o zamknięciu sklepu
-    // key_t key = ftok("/tmp", 4);
-    // int msqid_piekarz = msgget(key, 0666 | IPC_CREAT);
-    // if (msqid_piekarz == -1) {
-    //     perror("msgget piekarz");
-    //     exit(1);
-    // }
-    
-    // message_buf sbuf = {.mtype = 1};
-    // strcpy(sbuf.mtext, "ZAMKNIJ");
-    // msgsnd(msqid_piekarz, &sbuf, sizeof(sbuf.mtext), 0);
-
-    // for (int i = 0; i < MAX_KASJEROW; i++) {
-    //     key_t key = ftok("/tmp", i + 1);
-    //     int msqid_kasjer = msgget(key, 0666 | IPC_CREAT);
-    //     if (msqid_kasjer == -1) {
-    //         perror("msgget kasjer");
-    //         exit(1);
-    //     }
-    //     msgsnd(msqid_kasjer, &sbuf, sizeof(sbuf.mtext), 0);
-    // }
-
-    // Czekanie na zakończenie wszystkich procesów potomnych
     while(1) {
         if (wait(NULL) < 0 && errno == ECHILD) {
             break;

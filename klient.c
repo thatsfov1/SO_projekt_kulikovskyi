@@ -22,11 +22,6 @@ int klient_index;
 void cleanup_handler(int signum) {
     shmdt(sklep);
     shmdt(kosz);
-    key_t key = ftok("/tmp", 5);
-    int msqid = msgget(key, 0666);
-    if (msqid != -1) {
-        msgctl(msqid, IPC_RMID, NULL);
-    }
     exit(0);
 }
 
@@ -38,6 +33,7 @@ void evacuation_handler(int signum) {
         int produkt_id = sklep->klienci[klient_index].lista_zakupow[i].id;
         sem_wait(sem_id, produkt_id);
         kosz->produkty[produkt_id].ilosc += sklep->klienci[klient_index].lista_zakupow[i].ilosc;
+        strcpy(kosz->produkty[produkt_id].nazwa, sklep->klienci[klient_index].lista_zakupow[i].nazwa); // Copy product name
         sem_post(sem_id, produkt_id);
     }
 
@@ -46,14 +42,6 @@ void evacuation_handler(int signum) {
     sklep->ilosc_klientow--;
     sem_post(sem_id, 12);
 
-    if (sklep->ilosc_klientow == 0) {
-        printf("Stan kosza po ewakuacji:\n");
-        for (int i = 0; i < MAX_PRODUKTOW; i++) {
-            if (kosz->produkty[i].ilosc > 0) {
-                printf("%s %d szt.\n", kosz->produkty[i].nazwa, kosz->produkty[i].ilosc);
-            }
-        }
-    }
     cleanup_handler(signum);
 }
 

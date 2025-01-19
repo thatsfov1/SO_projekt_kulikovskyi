@@ -25,31 +25,30 @@ void cleanup_handler(int signum) {
         }
         printf("\n");
     }
+
+    printf("Kierownik: Stan kosza po zamknięciu sklepu:\n");
+    for (int i = 0; i < MAX_PRODUKTOW; i++) {
+        if (kosz->produkty[i].ilosc > 0) {
+            printf("%s %d szt.\n", kosz->produkty[i].nazwa, kosz->produkty[i].ilosc);
+        }
+    }
+
     shmdt(sklep);
     shmdt(kosz);
+
+    printf("Kierownik: Wszyscy klienci opuścili sklep. Sukces ewakuacji \n");
     exit(0);
 }
 
 void evacuation_handler(int signum) {
     printf("Kierownik: Rozpoczynam ewakuację sklepu...\n");
 
-    // Informing all processes to stop their operations
     kill(0, SIGUSR1);
     
-    // Wait for all customers to exit
     while (sklep->ilosc_klientow > 0) {
         sleep(1);
     }
 
-    for (int i = 0; i < MAX_KASJEROW; i++) {
-        key_t key = ftok("/tmp", i + 1);
-        int msqid = msgget(key, 0666);
-        if (msqid != -1) {
-            msgctl(msqid, IPC_RMID, NULL);
-        }
-    }
-
-    printf("Kierownik: Wszyscy klienci opuścili sklep. Zamykanie sklepu...\n");
     cleanup_handler(signum);
 }
 
@@ -59,8 +58,9 @@ int main() {
 
     srand(time(NULL));
 
-    int will_inwentaryzacja = rand() % 2;
-    if (will_inwentaryzacja) {
+    // Losowanie czy będzie inwentaryzacja
+    int czy_bedzie_inwentaryzacja = rand() % 5 + 1;
+    if (czy_bedzie_inwentaryzacja==1) {
         printf("Kierownik: Inwentaryzacja będzie przeprowadzona.\n");
         sklep->inwentaryzacja = 1;
     } else {
@@ -92,7 +92,7 @@ int main() {
     char ch;
     while ((ch = getchar()) != EOF) {
         if (ch == 'e') {
-            if (kill(getpid(), SIGUSR1) == 0) {
+            if (kill(0, SIGUSR1) == 0) {
                 printf("Sygnał o ewakuację wysłany\n");
             } else {
                 perror("Błąd wysyłania sygnału o ewakuację");
