@@ -11,6 +11,15 @@
 #define SEM_KEY 5678
 #define KOSZ_KEY 1111
 #define CZAS_PRACY 60
+#define msq_kierownik 4
+#define close_store_message "ZAMKNIJ"
+
+// Kolory
+#define RED "\033[31m"
+#define GREEN "\033[32m"
+#define YELLOW "\033[33m"
+#define BLUE "\033[34m"
+#define RESET "\033[0m"
 
 typedef struct {
     long mtype;

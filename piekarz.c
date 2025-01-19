@@ -21,11 +21,25 @@ void evacuation_handler(int signum) {
     cleanup_handler(signum);
 }
 
+
 void wypiekaj_produkty(Sklep *sklep, int sem_id) {
     srand(time(NULL));
     message_buf rbuf;
 
+    key_t key = ftok("/tmp", msq_kierownik);
+    int msqid = msgget(key, 0666 | IPC_CREAT);
+    if (msqid == -1) {
+        perror("msgget");
+        exit(1);
+    }
+
     while (1) {
+        if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1) {
+            if (strcmp(rbuf.mtext, close_store_message) == 0) {
+                printf("Piekarz: Otrzymałem komunikat o zamknięciu sklepu, kończę pracę.\n");
+                break;
+            }
+        }
         for (int i = 0; i < MAX_PRODUKTOW; i++) {
             sem_wait(sem_id, i);  // Czekamy na dostęp do podajnika
 
@@ -60,7 +74,7 @@ void wypiekaj_produkty(Sklep *sklep, int sem_id) {
 }
 
 int main (){
-    signal(SIGUSR1, evacuation_handler);
+    setup_signal_handlers(cleanup_handler, evacuation_handler);
 
     int shm_id = shmget(SHM_KEY, sizeof(Sklep), 0666);
     if (shm_id < 0) {

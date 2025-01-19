@@ -25,19 +25,46 @@ void cleanup_handler(int signum) {
         }
         printf("\n");
     }
-
-    printf("Kierownik: Stan kosza po zamknięciu sklepu:\n");
-    for (int i = 0; i < MAX_PRODUKTOW; i++) {
-        if (kosz->produkty[i].ilosc > 0) {
-            printf("%s %d szt.\n", kosz->produkty[i].nazwa, kosz->produkty[i].ilosc);
+    
+    if(signum == SIGUSR1) {
+        printf("Kierownik: Stan kosza po zamknięciu sklepu:\n");
+            for (int i = 0; i < MAX_PRODUKTOW; i++) {
+                if (kosz->produkty[i].ilosc > 0) {
+                    printf("%s %d szt.\n", kosz->produkty[i].nazwa, kosz->produkty[i].ilosc);
+                }
         }
     }
+    
 
     shmdt(sklep);
     shmdt(kosz);
+    key_t key = ftok("/tmp", msq_kierownik);
+        int msqid = msgget(key, 0666);
+        if (msqid != -1) {
+            msgctl(msqid, IPC_RMID, NULL);
+    }
 
     printf("Kierownik: Wszyscy klienci opuścili sklep. Sukces ewakuacji \n");
     exit(0);
+}
+
+void send_close_message() {
+    key_t key = ftok("/tmp", msq_kierownik);
+    int msqid = msgget(key, 0666 | IPC_CREAT);
+    if (msqid == -1) {
+        perror("msgget");
+        exit(1);
+    }
+
+    message_buf sbuf;
+    sbuf.mtype = 1;
+    strcpy(sbuf.mtext, close_store_message);
+
+    if (msgsnd(msqid, &sbuf, sizeof(sbuf.mtext), 0) == -1) {
+        perror("msgsnd");
+        exit(1);
+    }
+    printf("Kierownik: Wkrótce sklep zamyka się, wszyscy klienci stojący w kolejce do kas będą obsłużeni, innych poproszę odłożyć towary do podajników i wyjść ze sklepu\n");
 }
 
 void evacuation_handler(int signum) {
@@ -88,6 +115,9 @@ int main() {
         perror("shmat kosz");
         exit(1);
     }
+
+    sleep(CZAS_PRACY);
+    send_close_message();
 
     char ch;
     while ((ch = getchar()) != EOF) {

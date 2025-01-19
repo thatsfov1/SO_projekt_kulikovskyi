@@ -87,8 +87,23 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
         exit(1);
     }
     message_buf rbuf;
-      while (1) {
 
+    key_t kierownik_key = ftok("/tmp", msq_kierownik);
+    int kierownik_msqid = msgget(kierownik_key, 0666 | IPC_CREAT);
+    if (kierownik_msqid == -1) {
+        perror("msgget kierownik");
+        exit(1);
+    }
+
+    int sklep_zamkniety = 0;
+
+      while (1) {
+        if (msgrcv(kierownik_msqid, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1) {
+            if (strcmp(rbuf.mtext, close_store_message) == 0) {
+                printf("Kasa %d: Otrzymałem komunikat o zamknięciu sklepu.\n", kasa_id + 1);
+                sklep_zamkniety = 1;
+            }
+        }
         sem_wait(sem_id, 13 + kasa_id);
         if (sklep->kasjerzy[kasa_id].ilosc_klientow > 0) {
             int klient_index = pobierz_id_klienta_z_kolejki(sklep, kasa_id);
@@ -119,6 +134,12 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
             }
         }
         sem_post(sem_id, 13 + kasa_id);
+
+        if (sklep_zamkniety && sklep->kasjerzy[kasa_id].ilosc_klientow == 0) {
+            printf("Kasa %d: Zamykam się, brak klientów w kolejce.\n", kasa_id + 1);
+            break;
+        }
+
         usleep(1000000);
     }
     // if (sklep->inwentaryzacja) {

@@ -72,8 +72,23 @@ int znajdz_kase_z_najmniejsza_kolejka(Sklep *sklep, int sem_id) {
     return wybrana_kasa;
 }
 
+
 void zakupy(Sklep *sklep, int sem_id, int klient_id) {
     signal(SIGUSR1, evacuation_handler);
+    key_t kierownik_key = ftok("/tmp", msq_kierownik);
+    int msqid = msgget(kierownik_key, 0666 | IPC_CREAT);
+    if (msqid == -1) {
+        perror("msgget");
+        exit(1);
+    }
+
+    message_buf kierownik_rbuf;
+    if (msgrcv(msqid, &kierownik_rbuf, sizeof(kierownik_rbuf.mtext), 0, IPC_NOWAIT) != -1) {
+        if (strcmp(kierownik_rbuf.mtext, close_store_message) == 0) {
+            printf("Klient %d: Próbuje wejść do sklepu, ale już ogłoszono decyzję o zamknięciu.\n", klient_id);
+            exit(0);
+        }
+    }
 
     while (1) {
         sem_wait(sem_id, 12);
@@ -83,7 +98,7 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id) {
             break;
         } else {
             sem_post(sem_id, 12);
-            printf("Klient %d: Sklep jest pełny, czekam przed wejściem...\n", klient_id);
+            printf( "Klient %d: Sklep jest pełny, czekam przed wejściem...\n", klient_id);
             sleep(1); // Czekanie 1 sekundy przed ponownym sprawdzeniem
         }
     }
@@ -161,33 +176,39 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id) {
     sklep->kasjerzy[kasa_id].ilosc_klientow++; // Zwiększenie liczby klientów w kasie
     sem_post(sem_id, 13 + kasa_id);
 
-    printf("Klient %d: Ustawiam się w kolejce do kasy %d\n", klient_id, kasa_id + 1);
+    printf( "Klient %d: Ustawiam się w kolejce do kasy %d\n" , klient_id, kasa_id + 1);
 
     // Otwieranie kolejki komunikatów
     key_t key = ftok("/tmp", kasa_id + 1);
-    int msqid = msgget(key, 0666 | IPC_CREAT);
-    if (msqid == -1) {
+    int msqid_kasy = msgget(key, 0666 | IPC_CREAT);
+    if (msqid_kasy == -1) {
         perror("msgget");
         exit(1);
     }
     
     message_buf rbuf;
     // Czekanie na komunikat od kasjera
-    if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), getpid(), 0) == -1) {
+    if (msgrcv(msqid_kasy, &rbuf, sizeof(rbuf.mtext), getpid(), 0) == -1) {
         perror("msgrcv klient");
         exit(1);
     }
-    printf("Klient %d: Otrzymałem komunikat od kasjera, mogę opuścić sklep\n", klient_id);
+    printf( "Klient %d: Otrzymałem komunikat od kasjera, mogę opuścić sklep\n" , klient_id);
     // Klient opuszcza sklep
     sem_wait(sem_id, 12);
     sklep->ilosc_klientow--;
     sem_post(sem_id, 12);
-    printf("Klient %d: Opuszczam sklep\n", klient_id);
-    //msgctl(msqid, IPC_RMID, NULL);
+    printf( "Klient %d: Opuszczam sklep\n" , klient_id);
 }
 
 int main(){
     signal(SIGTERM, cleanup_handler);
+
+    key_t key = ftok("/tmp", msq_kierownik);
+    int msqid = msgget(key, 0666 | IPC_CREAT);
+    if (msqid == -1) {
+        perror("msgget");
+        exit(1);
+    }
 
     shm_id = shmget(SHM_KEY, sizeof(Sklep), 0666);
     if (shm_id < 0) {
@@ -233,7 +254,16 @@ int main(){
             perror("fork");
             exit(1);
         }
+        message_buf rbuf;
+        if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1) {
+            if (strcmp(rbuf.mtext, close_store_message) == 0) {
+                printf("Klient: Otrzymałem komunikat o zamknięciu sklepu, kończę pracę.\n");
+                break;
+            }
+        }
     }
+
+    
 
     // Czekanie na zakończenie wszystkich procesów potomnych
     while(1) {
