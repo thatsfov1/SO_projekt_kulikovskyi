@@ -22,7 +22,7 @@ int klient_index;
 void cleanup_handler(int signum) {
     shmdt(sklep);
     shmdt(kosz);
-    key_t key = ftok("/tmp", klient_index + 1);
+    key_t key = ftok("/tmp", 5);
     int msqid = msgget(key, 0666);
     if (msqid != -1) {
         msgctl(msqid, IPC_RMID, NULL);
@@ -187,7 +187,6 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id) {
     // Czekanie na komunikat od kasjera
     if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), getpid(), 0) == -1) {
         perror("msgrcv klient");
-        printf("klient id: %d\n", klient_id);
         exit(1);
     }
     printf("Klient %d: Otrzymałem komunikat od kasjera, mogę opuścić sklep\n", klient_id);
@@ -201,13 +200,6 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id) {
 
 int main(){
     signal(SIGTERM, cleanup_handler);
-
-    key_t key_klient = ftok("/tmp", 5);
-    int msqid_klient = msgget(key_klient, 0666 | IPC_CREAT);
-    if (msqid_klient == -1) {
-        perror("msgget klient");
-        exit(1);
-    }
 
     shm_id = shmget(SHM_KEY, sizeof(Sklep), 0666);
     if (shm_id < 0) {
@@ -239,14 +231,7 @@ int main(){
         exit(1);
     }
 
-    message_buf rbuf;
     while(1) {
-        if (msgrcv(msqid_klient, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1) {
-            if (strcmp(rbuf.mtext, "ZAMKNIJ") == 0) {
-                printf("Klient main: Otrzymałem komunikat 'ZAMKNIJ', kończę tworzenie klientów.\n");
-                break;
-            }
-        }
         pid_t pid = fork();
         if (pid == 0) { // Proces potomny
             srand(time(NULL) ^ (getpid()<<16)); // Inicjalizacja generatora liczb losowych na podstawie PID
@@ -264,9 +249,7 @@ int main(){
 
     // Czekanie na zakończenie wszystkich procesów potomnych
     while(1) {
-        if (wait(NULL) < 0 && errno == ECHILD) {
-            break;
-        }
+        wait(NULL);
     }
 
     shmdt(sklep);

@@ -88,13 +88,13 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
     }
     message_buf rbuf;
       while (1) {
-        // Sprawdzenie, czy sklep jest zamknięty
-        if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1 ) {
-            if (strcmp(rbuf.mtext, "ZAMKNIJ") == 0) {
-                printf("Kasjer %d: Otrzymałem komunikat o zamknięciu sklepu, kończę pracę.\n", kasa_id + 1);
-                break;
-            }
-        }
+        // // Sprawdzenie, czy sklep jest zamknięty
+        // if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1 ) {
+        //     if (strcmp(rbuf.mtext, "ZAMKNIJ") == 0) {
+        //         printf("Kasjer %d: Otrzymałem komunikat o zamknięciu sklepu, kończę pracę.\n", kasa_id + 1);
+        //         break;
+        //     }
+        // }
 
         sem_wait(sem_id, 13 + kasa_id);
         if (sklep->kasjerzy[kasa_id].ilosc_klientow > 0) {

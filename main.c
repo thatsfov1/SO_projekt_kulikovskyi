@@ -18,50 +18,11 @@ int msqid[MAX_KASJEROW];
 Sklep *sklep;
 Kosz *kosz;
 
-
-
 void cleanup(int signum) {
     printf("\nZamykanie sklepu...\n");
 
     // Wysłanie sygnału do wszystkich procesów w grupie
-    //kill(0, SIGTERM);
-    // Wysłanie komunikatu "ZAMKNIJ" do piekarza
-    key_t key = ftok("/tmp", 4);
-    int msqid_piekarz = msgget(key, 0666 | IPC_CREAT);
-    if (msqid_piekarz == -1) {
-        perror("msgget piekarz");
-        exit(1);
-    }
-    message_buf sbuf = {.mtype = 1};
-    strcpy(sbuf.mtext, "ZAMKNIJ");
-    msgsnd(msqid_piekarz, &sbuf, sizeof(sbuf.mtext), 0);
-
-    // Wysłanie komunikatu "ZAMKNIJ" do kasjerów
-    for (int i = 0; i < MAX_KASJEROW; i++) {
-        key_t key = ftok("/tmp", i + 1);
-        int msqid_kasjer = msgget(key, 0666 | IPC_CREAT);
-        if (msqid_kasjer == -1) {
-            perror("msgget kasjer");
-            exit(1);
-        }
-        msgsnd(msqid_kasjer, &sbuf, sizeof(sbuf.mtext), 0);
-    }
-
-    // Wysłanie komunikatu "ZAMKNIJ" do klientów
-    key_t key_klient = ftok("/tmp", 5);
-    int msqid_klient = msgget(key_klient, 0666 | IPC_CREAT);
-    if (msqid_klient == -1) {
-        perror("msgget klient");
-        exit(1);
-    }
-    msgsnd(msqid_klient, &sbuf, sizeof(sbuf.mtext), 0);
-
-    // Czekamy, aż procesy potomne się zakończą i wypiszą podsumowania
-    while (1) {
-        if (wait(NULL) < 0 && errno == ECHILD) {
-            break;
-        }
-    }
+    kill(0, SIGTERM);
  
     // Czyszczenie zasobów
     shmdt(sklep);
@@ -70,7 +31,7 @@ void cleanup(int signum) {
     shmctl(kosz_id, IPC_RMID, NULL);
     semctl(sem_id, 0, IPC_RMID);
 
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < MAX_KASJEROW; i++) {
         msgctl(msqid[i], IPC_RMID, NULL);
     }
     printf("Wszystkie zasoby zostały zwolnione.\n");
@@ -189,27 +150,23 @@ int main() {
     }
 
     
-
+    sleep(CZAS_PRACY);
+    //  Wysłanie sygnału zamknięcia sklepu
+    printf("Sklep zamyka się, wszyscy klienci w kolejce będą obsłużeni\n");
     
-    //kill(0, SIGTERM);
+    kill(0, SIGTERM);
 
-    // Wysłanie komunikatu o zamknięciu sklepu
+    //Wysłanie komunikatu o zamknięciu sklepu
     // key_t key = ftok("/tmp", 4);
     // int msqid_piekarz = msgget(key, 0666 | IPC_CREAT);
     // if (msqid_piekarz == -1) {
     //     perror("msgget piekarz");
     //     exit(1);
     // }
-    // key_t key_klient = ftok("/tmp", 5);
-    // int msqid_klient = msgget(key_klient, 0666 | IPC_CREAT);
-    // if (msqid_klient == -1) {
-    //     perror("msgget klient");
-    //     exit(1);
-    // }
+    
     // message_buf sbuf = {.mtype = 1};
     // strcpy(sbuf.mtext, "ZAMKNIJ");
     // msgsnd(msqid_piekarz, &sbuf, sizeof(sbuf.mtext), 0);
-    // msgsnd(msqid_klient, &sbuf, sizeof(sbuf.mtext), 0);
 
     // for (int i = 0; i < MAX_KASJEROW; i++) {
     //     key_t key = ftok("/tmp", i + 1);
@@ -221,17 +178,13 @@ int main() {
     //     msgsnd(msqid_kasjer, &sbuf, sizeof(sbuf.mtext), 0);
     // }
 
-    // // Czekanie na zakończenie wszystkich procesów potomnych
-    // while(1) {
-    //     if (wait(NULL) < 0 && errno == ECHILD) {
-    //         break;
-    //     }
-    // }
+    // Czekanie na zakończenie wszystkich procesów potomnych
+    while(1) {
+        if (wait(NULL) < 0 && errno == ECHILD) {
+            break;
+        }
+    }
 
-    // Czas pracy piekarni
-    sleep(CZAS_PRACY);
-//  Wysłanie sygnału zamknięcia sklepu
-    printf("Sklep zamyka się, wszyscy klienci w kolejce będą obsłużeni\n");
     cleanup(0);
 
     return 0;

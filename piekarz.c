@@ -14,15 +14,15 @@ Sklep *sklep;
 int msqid;
 
 void cleanup_handler(int signum) {
-    if (sklep->inwentaryzacja) {
-        printf("Piekarz: Za dzień wyprodukowano: ");
-        for (int i = 0; i < MAX_PRODUKTOW; i++) {
-            if (sklep->statystyki_piekarza.wyprodukowane[i] > 0) {
-                printf("%s %d szt. ", sklep->podajniki[i].produkt.nazwa, sklep->statystyki_piekarza.wyprodukowane[i]);
-            }
-        }
-        printf("\n");
-    }
+    // if (sklep->inwentaryzacja) {
+    //     printf("Piekarz: Za dzień wyprodukowano: ");
+    //     for (int i = 0; i < MAX_PRODUKTOW; i++) {
+    //         if (sklep->statystyki_piekarza.wyprodukowane[i] > 0) {
+    //             printf("%s %d szt. ", sklep->podajniki[i].produkt.nazwa, sklep->statystyki_piekarza.wyprodukowane[i]);
+    //         }
+    //     }
+    //     printf("\n");
+    // }
     shmdt(sklep);
     msgctl(msqid, IPC_RMID, NULL);
     exit(0);
@@ -34,22 +34,22 @@ void evacuation_handler(int signum) {
 
 void wypiekaj_produkty(Sklep *sklep, int sem_id) {
     srand(time(NULL));
-    key_t key = ftok("/tmp", 4);
-    msqid = msgget(key, 0666 | IPC_CREAT);
-    if (msqid == -1) {
-        perror("msgget");
-        exit(1);
-    }
+    // key_t key = ftok("/tmp", 4);
+    // msqid = msgget(key, 0666 | IPC_CREAT);
+    // if (msqid == -1) {
+    //     perror("msgget");
+    //     exit(1);
+    // }
     message_buf rbuf;
 
     while (1) {
-        // Sprawdzenie, czy sklep jest zamknięty
-        if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1) {
-            if (strcmp(rbuf.mtext, "ZAMKNIJ") == 0) {
-                printf("Piekarz: Otrzymałem komunikat o zamknięciu sklepu, kończę pracę.\n");
-                break;
-            }
-        }
+        // // Sprawdzenie, czy sklep jest zamknięty
+        // if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1) {
+        //     if (strcmp(rbuf.mtext, "ZAMKNIJ") == 0) {
+        //         printf("Piekarz: Otrzymałem komunikat o zamknięciu sklepu, kończę pracę.\n");
+        //         break;
+        //     }
+        // }
         for (int i = 0; i < MAX_PRODUKTOW; i++) {
             sem_wait(sem_id, i);  // Czekamy na dostęp do podajnika
 

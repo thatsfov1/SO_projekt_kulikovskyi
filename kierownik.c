@@ -41,6 +41,14 @@ void evacuation_handler(int signum) {
         sleep(1);
     }
 
+    for (int i = 0; i < MAX_KASJEROW; i++) {
+        key_t key = ftok("/tmp", i + 1);
+        int msqid = msgget(key, 0666);
+        if (msqid != -1) {
+            msgctl(msqid, IPC_RMID, NULL);
+        }
+    }
+
     printf("Kierownik: Wszyscy klienci opuścili sklep. Zamykanie sklepu...\n");
     cleanup_handler(signum);
 }
@@ -50,6 +58,7 @@ int main() {
     signal(SIGUSR1, evacuation_handler);
 
     srand(time(NULL));
+
     int will_inwentaryzacja = rand() % 2;
     if (will_inwentaryzacja) {
         printf("Kierownik: Inwentaryzacja będzie przeprowadzona.\n");
