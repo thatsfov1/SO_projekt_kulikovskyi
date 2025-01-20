@@ -16,18 +16,25 @@ int kasa_id;
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną i wysyła potwierdzenia
 void cleanup_handler(int signum) {
     if (sklep->inwentaryzacja) {
-        for (int i = 0; i < MAX_KASJEROW; i++) {
-            key_t key = ftok("/tmp", i + 1);
-            int msqid = msgget(key, 0666 | IPC_CREAT);
-            if (msqid != -1) {
-                message_buf sbuf;
-                sbuf.mtype = 2;
-                for (int j = 0; j < MAX_PRODUKTOW; j++) {
-                    sprintf(sbuf.mtext, "%d", sklep->kasjerzy[kasa_id].ilosc_sprzedanych[j]);
-                    msgsnd(msqid, &sbuf, sizeof(sbuf.mtext), 0);
+        int sprzedal_cos = 0;
+        printf("Kasjer %d: ", kasa_id + 1);
+        
+        for (int j = 0; j < MAX_PRODUKTOW; j++) {
+            if (sklep->kasjerzy[kasa_id].ilosc_sprzedanych[j] > 0) {
+                if (!sprzedal_cos) {
+                    printf("Sprzedał: ");
+                    sprzedal_cos = 1;
                 }
+                printf("%s: %d szt. ", 
+                    sklep->podajniki[j].produkt.nazwa, 
+                    sklep->kasjerzy[kasa_id].ilosc_sprzedanych[j]);
             }
         }
+        
+        if (!sprzedal_cos) {
+            printf("brak sprzedanych produktów przez kasę");
+        }
+        printf("\n");
     }
     shmdt(sklep);
     for (int i = 0; i < MAX_KASJEROW; i++) {
@@ -150,11 +157,6 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
             }
         }
         sem_post(sem_id, 13 + kasa_id);
-
-        // if (sklep->sklep_zamkniety && sklep->kasjerzy[kasa_id].ilosc_klientow == 0) {
-        //     printf("Kasa %d: Zamykam się, brak klientów w kolejce.\n", kasa_id + 1);
-        //     break;
-        // }
 
         usleep(100000);
     }

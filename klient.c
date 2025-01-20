@@ -212,15 +212,6 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     sklep->ilosc_klientow--;
     sem_post(sem_id, 12);
     printf("Klient %d: Opuszczam sklep\n", klient_id);
-
-    // Wysłanie potwierdzenia do kierownika o zakończeniu procesu
-    // message_buf sbuf;
-    // sbuf.mtype = 1;
-    // strcpy(sbuf.mtext, acknowledgment_to_kierownik);
-    // if (msgsnd(msqid, &sbuf, sizeof(sbuf.mtext), 0) == -1) {
-    //     perror("msgsnd");
-    //     exit(1);
-    // }
 }
 
 int main() {
@@ -284,7 +275,7 @@ int main() {
             zakupy(sklep, sem_id, getpid(), msqid_klient);
             exit(0);
         } else if (pid > 0) { // Proces macierzysty
-            sleep(rand() % 3 + 1);
+            sleep(1);
         } else {
             perror("fork");
             exit(1);

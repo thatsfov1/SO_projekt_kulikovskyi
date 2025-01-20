@@ -44,16 +44,10 @@ void send_acknowledgment() {
 
 // Wysłanie danych inwentaryzacyjnych do kierownika, jeśli inwentaryzacja jest włączona
 void send_inventory() {
-    key_t key = ftok("/tmp", msq_piekarz);
-    int msqid_piekarz = msgget(key, 0666 | IPC_CREAT);
-    if (msqid_piekarz != -1) {
-        message_buf sbuf;
-        sbuf.mtype = 1;
-        for (int i = 0; i < MAX_PRODUKTOW; i++) {
-            sprintf(sbuf.mtext, "%d", sklep->statystyki_piekarza.wyprodukowane[i]);
-            msgsnd(msqid_piekarz, &sbuf, sizeof(sbuf.mtext), 0);
-        }
+    for (int i = 0; i < MAX_PRODUKTOW; i++) {
+        printf("Piekarz: Wyprodukował %s %d szt.\n", sklep->podajniki[i].produkt.nazwa, sklep->statystyki_piekarza.wyprodukowane[i]);
     }
+
 }
 
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną i wysyła potwierdzenie

@@ -10,7 +10,7 @@
 #define SHM_KEY 1234
 #define SEM_KEY 5678
 #define KOSZ_KEY 1111
-#define CZAS_PRACY 15
+#define CZAS_PRACY 60
 #define msq_klient 4
 #define msq_kierownik 5
 #define msq_piekarz 6
@@ -26,33 +26,39 @@
 #define BLUE "\033[34m"
 #define RESET "\033[0m"
 
-typedef struct {
+typedef struct
+{
     long mtype;
     char mtext[100];
 } message_buf;
 
-typedef struct {
+typedef struct
+{
     char nazwa[50];
     float cena;
     int ilosc;
     int id;
 } Produkt;
 
-typedef struct {
+typedef struct
+{
     Produkt produkt;
 } Podajnik;
 
-typedef struct {
+typedef struct
+{
     int wyprodukowane[MAX_PRODUKTOW];
 } StatystykiPiekarza;
 
-typedef struct {
+typedef struct
+{
     int klient_id;
     Produkt lista_zakupow[MAX_PRODUKTOW];
     int ilosc_zakupow;
 } Klient;
 
-typedef struct {
+typedef struct
+{
     int ilosc_sprzedanych[MAX_PRODUKTOW];
     float suma;
     int kolejka_klientow[MAX_KLIENTOW];
@@ -61,7 +67,8 @@ typedef struct {
     int ilosc_klientow;
 } Kasjer;
 
-typedef struct {
+typedef struct
+{
     Podajnik podajniki[MAX_PRODUKTOW];
     Klient klienci[MAX_KLIENTOW];
     Kasjer kasjerzy[MAX_KASJEROW];
@@ -71,7 +78,8 @@ typedef struct {
     int sklep_zamkniety;
 } Sklep;
 
-typedef struct {
+typedef struct
+{
     Produkt produkty[MAX_PRODUKTOW];
     int ilosc_produktow;
 } Kosz;

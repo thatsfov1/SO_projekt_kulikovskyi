@@ -43,30 +43,6 @@ void print_inventory() {
         }
     }
     printf("\n");
-
-    key_t piekarz_key = ftok("/tmp", msq_piekarz);
-    int piekarz_msqid = msgget(piekarz_key, 0666);
-    if (piekarz_msqid != -1) {
-        message_buf rbuf;
-        for (int i = 0; i < MAX_PRODUKTOW; i++) {
-            if (msgrcv(piekarz_msqid, &rbuf, sizeof(rbuf.mtext), 0, 0) != -1) {
-                printf("Piekarz: Wyprodukował %s %s szt.\n", sklep->podajniki[i].produkt.nazwa, rbuf.mtext);
-            }
-        }
-    }
-
-    for (int i = 0; i < MAX_KASJEROW; i++) {
-        key_t kasjer_key = ftok("/tmp", i + 1);
-        int kasjer_msqid = msgget(kasjer_key, 0666);
-        if (kasjer_msqid != -1) {
-            message_buf rbuf;
-            for (int j = 0; j < MAX_PRODUKTOW; j++) {
-                if (msgrcv(kasjer_msqid, &rbuf, sizeof(rbuf.mtext), 0, 0) != -1) {
-                    printf("Kasjer %d: Sprzedał %s %s szt.\n", i + 1, sklep->podajniki[j].produkt.nazwa, rbuf.mtext);
-                }
-            }
-        }
-    }
 }
 
 // Wydrukowanie stanu kosza po zamknięciu sklepu
@@ -133,7 +109,6 @@ void wait_for_acknowledgments() {
         if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), 0, 0) != -1) {
             if (strcmp(rbuf.mtext, acknowledgment_to_kierownik) == 0) {
                 ack_count++;
-                printf(RED "Kierownik: Otrzymano potwierdzenie %d/5\n" RESET, ack_count);
             }
         }
     }
@@ -172,7 +147,6 @@ void evacuation_handler(int signum) {
     while (sklep->ilosc_klientow > 0) {
         sleep(1);
     }
-    //send_close_message_to_main();
 
     cleanup_handler(SIGUSR1);
 }
@@ -211,15 +185,15 @@ int main() {
         exit(1);
     }
 
-    // int czy_bedzie_inwentaryzacja = 1;
-    // if (czy_bedzie_inwentaryzacja == 1) {
-    //     printf(BLUE "Kierownik: Inwentaryzacja będzie przeprowadzona.\n" RESET);
-    //     sklep->inwentaryzacja = 1;
-    // } else {
-    //     printf(BLUE "Kierownik: Inwentaryzacja nie będzie przeprowadzona.\n" RESET);
-    // }
+    int czy_bedzie_inwentaryzacja = 1;
+    if (czy_bedzie_inwentaryzacja == 1) {
+        printf(BLUE "Kierownik: Inwentaryzacja będzie przeprowadzona.\n" RESET);
+        sklep->inwentaryzacja = 1;
+    } else {
+        printf(BLUE "Kierownik: Inwentaryzacja nie będzie przeprowadzona.\n" RESET);
+    }
 
-    int czy_bedzie_ewakuacja = 1;
+    int czy_bedzie_ewakuacja = rand() % 10 + 1;
     if (czy_bedzie_ewakuacja == 1) {
         sleep(rand() % CZAS_PRACY + 5);
         if (kill(0, SIGUSR1) == 0) {
@@ -231,7 +205,6 @@ int main() {
 
     sleep(CZAS_PRACY);
     send_close_message();
-
     
     wait_for_acknowledgments();
     cleanup_handler(0);
