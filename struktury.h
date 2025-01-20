@@ -10,10 +10,14 @@
 #define SHM_KEY 1234
 #define SEM_KEY 5678
 #define KOSZ_KEY 1111
-#define CZAS_PRACY 60
-#define msq_kierownik 4
-#define msq_piekarz 5
+#define CZAS_PRACY 15
+#define msq_klient 4
+#define msq_kierownik 5
+#define msq_piekarz 6
+#define msq_main 7
 #define close_store_message "ZAMKNIJ"
+#define acknowledgment_to_kierownik "ACK"
+#define ready_to_close "READY_TO_CLOSE"
 
 // Kolory
 #define RED "\033[31m"
@@ -64,6 +68,7 @@ typedef struct {
     int ilosc_klientow;
     int inwentaryzacja;
     StatystykiPiekarza statystyki_piekarza;
+    int sklep_zamkniety;
 } Sklep;
 
 typedef struct {

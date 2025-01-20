@@ -17,12 +17,14 @@ int kosz_id;
 Sklep *sklep;
 Kosz *kosz;
 
+// Funkcja czyszcząca, która odłącza pamięć współdzieloną i usuwa semafory oraz kolejki komunikatów
 void cleanup(int signum) {
     printf(RED "\nZamykanie sklepu...\n" RESET);
 
     // Wysłanie sygnału do wszystkich procesów w grupie
     kill(0, SIGTERM);
  
+    sleep(1);
     // Czyszczenie zasobów
     shmdt(sklep);
     shmdt(kosz);
@@ -30,12 +32,16 @@ void cleanup(int signum) {
     shmctl(shm_id, IPC_RMID, NULL);
     shmctl(kosz_id, IPC_RMID, NULL);
     semctl(sem_id, 0, IPC_RMID);
-    key_t key = ftok("/tmp", msq_kierownik);
-        int msqid = msgget(key, 0666);
-        if (msqid != -1) {
-            msgctl(msqid, IPC_RMID, NULL);
+
+    // Usunięcie kolejki komunikatów kierownika
+    key_t key = ftok("/tmp", msq_main);
+    int msqid = msgget(key, 0666);
+    if (msqid != -1) {
+        msgctl(msqid, IPC_RMID, NULL);
     }
-    for (int i = 0; i < MAX_KASJEROW; i++){
+
+    // Usunięcie kolejek komunikatów kasjerów
+    for (int i = 0; i < MAX_KASJEROW; i++) {
         key_t key = ftok("/tmp", i + 1);
         int msqid = msgget(key, 0666);
         if (msqid != -1) {
@@ -45,6 +51,7 @@ void cleanup(int signum) {
     exit(0);
 }
 
+// Obsługa sygnału ewakuacji
 void evacuation_handler(int signum) {
     printf("Main: Otrzymałem sygnał ewakuacji, kończę pracę.\n");
     cleanup(signum);
@@ -53,7 +60,7 @@ void evacuation_handler(int signum) {
 int main() {
     setup_signal_handlers(cleanup, evacuation_handler);
 
-    // Tworzenie pamięci współdzielonej
+    // Tworzenie pamięci współdzielonej dla sklepu
     shm_id = shmget(SHM_KEY, sizeof(Sklep), IPC_CREAT | 0666);
     if (shm_id < 0) {
         perror("shmget");
@@ -66,6 +73,7 @@ int main() {
         exit(1);
     }
 
+    // Tworzenie pamięci współdzielonej dla kosza
     kosz_id = shmget(KOSZ_KEY, sizeof(Kosz), IPC_CREAT | 0666);
     if (kosz_id < 0) {
         perror("shmget kosz");
@@ -90,10 +98,12 @@ int main() {
         semctl(sem_id, i, SETVAL, 1);
     }
 
+    // Inicjalizacja struktury sklepu
     sklep->ilosc_klientow = 0;
     sklep->inwentaryzacja = 0;
     init_produkty(sklep);
     init_kosz(kosz, sklep);
+    sklep->sklep_zamkniety = 0;
     printf("Nacisnij 'e' dla wysłania sygnału o ewakuację.\n");
 
     // Uruchamianie procesów
@@ -115,30 +125,47 @@ int main() {
         execl("./klient", "./klient", NULL);
     }
 
-    key_t kierownik_key = ftok("/tmp", msq_kierownik);
-    int kierownik_msqid = msgget(kierownik_key, 0666 | IPC_CREAT);
-    if (kierownik_msqid == -1) {
-        perror("msgget kierownik");
+    // Tworzenie kolejki komunikatów dla kierownika
+    // key_t kierownik_key = ftok("/tmp", msq_kierownik);
+    // int kierownik_msqid = msgget(kierownik_key, 0666 | IPC_CREAT);
+    // if (kierownik_msqid == -1) {
+    //     perror("msgget kierownik");
+    //     exit(1);
+    // }
+
+    key_t main_key = ftok("/tmp", msq_main);
+    int main_msqid = msgget(main_key, 0666 | IPC_CREAT);
+    if (main_msqid == -1) {
+        perror("msgget main");
         exit(1);
     }
-
     message_buf rbuf;
-    if (msgrcv(kierownik_msqid, &rbuf, sizeof(rbuf.mtext), 0, 0) != -1) {
-        if (strcmp(rbuf.mtext, close_store_message) == 0) {
-            printf(YELLOW "Main: Otrzymałem komunikat o zamknięciu sklepu, czekam na zakończenie procesów.\n" RESET);
+    // Oczekiwanie na komunikat o zamknięciu sklepu
+    
+    // if (msgrcv(kierownik_msqid, &rbuf, sizeof(rbuf.mtext), 0, 0) != -1) {
+    //     if (strcmp(rbuf.mtext, close_store_message) == 0) {
+    //         printf(YELLOW "Main: Otrzymałem komunikat o zamknięciu sklepu, czekam na zakończenie procesów.\n" RESET);
 
-            // Czekanie na zakończenie wszystkich procesów potomnych
-            // int status;
-            // waitpid(kierownik_pid, &status, 0);
-            // waitpid(piekarz_pid, &status, 0);
-            // waitpid(kasjer_pid, &status, 0);
-            // waitpid(klient_pid, &status, 0);
+    //         // Czekanie na zakończenie wszystkich procesów potomnych
+    //         while (1) {
+    //             if (wait(NULL) < 0 && errno == ECHILD) {
+    //                 break;
+    //             }
+    //         }
 
-            printf(GREEN "Main: Wszystkie procesy zakończone, kończę pracę.\n" RESET);
+    //         printf(GREEN "Main: Wszystkie procesy zakończone, kończę pracę.\n" RESET);
+    //         cleanup(0);
+    //     }
+    // }
+
+    if (msgrcv(main_msqid, &rbuf, sizeof(rbuf.mtext), 0, 0) != -1) {
+        if (strcmp(rbuf.mtext, ready_to_close) == 0) {
+            printf(GREEN "Main: Wszystkie procesy gotowe do zamknięcia, kończę pracę.\n" RESET);
             cleanup(0);
         }
     }
 
+    // Główna pętla oczekiwania na zakończenie procesów
     while (1) {
         if (wait(NULL) < 0 && errno == ECHILD) {
             break;

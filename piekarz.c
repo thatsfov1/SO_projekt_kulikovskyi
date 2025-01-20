@@ -11,41 +11,75 @@
 #include "funkcje.h"
 
 Sklep *sklep;
+int msqid;
 
+// Inicjalizacja kolejki komunikatów do komunikacji z kierownikiem
+void initialize_message_queue() {
+    key_t key = ftok("/tmp", msq_piekarz);
+    msqid = msgget(key, 0666 | IPC_CREAT); 
+    if (msqid == -1) {
+        perror("msgget");
+        exit(1);
+    }
+}
+
+void cleanup_message_queue() {
+    if (msqid != -1) {
+        msgctl(msqid, IPC_RMID, NULL);
+    }
+}
+
+// Wysłanie potwierdzenia do kierownika, że piekarz zakończył swoje zadania
+void send_acknowledgment() {
+    key_t kierownik_key = ftok("/tmp", msq_kierownik);
+    int kierownik_mdqid = msgget(kierownik_key, 0666 | IPC_CREAT);
+    message_buf sbuf;
+    sbuf.mtype = 1;
+    strcpy(sbuf.mtext, acknowledgment_to_kierownik);
+    if (msgsnd(kierownik_mdqid, &sbuf, sizeof(sbuf.mtext), 0) == -1) {
+        perror("msgsnd");
+        exit(1);
+    }
+}
+
+// Wysłanie danych inwentaryzacyjnych do kierownika, jeśli inwentaryzacja jest włączona
+void send_inventory() {
+    key_t key = ftok("/tmp", msq_piekarz);
+    int msqid_piekarz = msgget(key, 0666 | IPC_CREAT);
+    if (msqid_piekarz != -1) {
+        message_buf sbuf;
+        sbuf.mtype = 1;
+        for (int i = 0; i < MAX_PRODUKTOW; i++) {
+            sprintf(sbuf.mtext, "%d", sklep->statystyki_piekarza.wyprodukowane[i]);
+            msgsnd(msqid_piekarz, &sbuf, sizeof(sbuf.mtext), 0);
+        }
+    }
+}
+
+// Funkcja czyszcząca, która odłącza pamięć współdzieloną i wysyła potwierdzenie
 void cleanup_handler(int signum) {
     if (sklep->inwentaryzacja) {
-            key_t key = ftok("/tmp", msq_piekarz);
-            int msqid = msgget(key, 0666 | IPC_CREAT);
-            if (msqid != -1) {
-                message_buf sbuf;
-                sbuf.mtype = 1;
-                for (int i = 0; i < MAX_PRODUKTOW; i++) {
-                    sprintf(sbuf.mtext, "%d", sklep->statystyki_piekarza.wyprodukowane[i]);
-                    msgsnd(msqid, &sbuf, sizeof(sbuf.mtext), 0);
-                }
-            }
+        send_inventory();
     }
     shmdt(sklep);
+    send_acknowledgment();
+    cleanup_message_queue();
     exit(0);
 }
+
+// Obsługa sygnału ewakuacji
 void evacuation_handler(int signum) {
     printf("Piekarz: Otrzymałem sygnał ewakuacji, kończę pracę.\n");
     cleanup_handler(signum);
 }
 
-
+// Funkcja wypiekająca produkty i dodająca je do podajników
 void wypiekaj_produkty(Sklep *sklep, int sem_id) {
     srand(time(NULL));
     message_buf rbuf;
 
-    key_t key = ftok("/tmp", msq_kierownik);
-    int msqid = msgget(key, 0666 | IPC_CREAT);
-    if (msqid == -1) {
-        perror("msgget");
-        exit(1);
-    }
-
     while (1) {
+        // Sprawdzenie, czy otrzymano komunikat o zamknięciu sklepu
         if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1) {
             if (strcmp(rbuf.mtext, close_store_message) == 0) {
                 printf("Piekarz: Otrzymałem komunikat o zamknięciu sklepu, kończę pracę.\n");
@@ -53,13 +87,11 @@ void wypiekaj_produkty(Sklep *sklep, int sem_id) {
             }
         }
         for (int i = 0; i < MAX_PRODUKTOW; i++) {
-            sem_wait(sem_id, i);  // Czekamy na dostęp do podajnika
+            sem_wait(sem_id, i);
 
-            // Losowanie liczby wypieczonych produktów
             int ilosc_wypiekow = rand() % 5 + 1;
             printf("Piekarz: Wypiekłem %d sztuk produktu %s, próbuję dodać do podajnika.\n", ilosc_wypiekow, sklep->podajniki[i].produkt.nazwa);
 
-            // Próba dodania produktów do podajnika
             if (sklep->podajniki[i].produkt.ilosc < MAX_PRODUKTOW_W_PODAJNIKU) {
                 int wolne_miejsce = MAX_PRODUKTOW_W_PODAJNIKU - sklep->podajniki[i].produkt.ilosc;
                 int do_dodania = (ilosc_wypiekow <= wolne_miejsce) ? ilosc_wypiekow : wolne_miejsce;
@@ -68,24 +100,22 @@ void wypiekaj_produkty(Sklep *sklep, int sem_id) {
                 sklep->statystyki_piekarza.wyprodukowane[i] += do_dodania;
                 printf("Piekarz: Dodałem %d sztuk %s do podajnika.\n", do_dodania, sklep->podajniki[i].produkt.nazwa);
 
-                // Jeśli zostały jeszcze produkty do dodania, wypisz komunikat
                 if (ilosc_wypiekow > do_dodania) {
                     printf("Piekarz: Nie dodałem %d sztuk %s do podajnika, bo jest pełny.\n", ilosc_wypiekow - do_dodania, sklep->podajniki[i].produkt.nazwa);
                 }
             } else {
-                // Jeśli podajnik jest pełny
                 printf("Piekarz: Podajnik %s pełny, nie mogę dodać produktów.\n", sklep->podajniki[i].produkt.nazwa);
             }
 
-            sem_post(sem_id, i);  // Zwalniamy semafor
+            sem_post(sem_id, i);
         }
 
-        sleep(5);  // Piekarz czeka 10 sekund przed kolejnym wypiekiem
-
+        sleep(5);
     }
+    //send_acknowledgment();
 }
 
-int main (){
+int main() {
     setup_signal_handlers(cleanup_handler, evacuation_handler);
 
     int shm_id = shmget(SHM_KEY, sizeof(Sklep), 0666);
@@ -106,7 +136,8 @@ int main (){
         exit(1);
     }
 
+    initialize_message_queue();
     wypiekaj_produkty(sklep, sem_id);
-    shmdt(sklep);
+    cleanup_handler(0);
     return 0;
 }

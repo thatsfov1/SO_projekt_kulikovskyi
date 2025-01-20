@@ -18,13 +18,26 @@ Sklep *sklep;
 Kosz *kosz;
 int kosz_id;
 int klient_index;
+int msqid_klient;
+int kierownik_msqid;
 
+void cleanup_message_queues() {
+    key_t key = ftok("/tmp", msq_klient);
+    msqid_klient = msgget(key, 0666);
+    if (msqid_klient != -1) {
+        msgctl(msqid_klient, IPC_RMID, NULL);
+    }
+}
+
+// Funkcja czyszcząca, która odłącza pamięć współdzieloną
 void cleanup_handler(int signum) {
+    cleanup_message_queues();
     shmdt(sklep);
     shmdt(kosz);
     exit(0);
 }
 
+// Obsługa sygnału ewakuacji
 void evacuation_handler(int signum) {
     printf("Klient %d: Otrzymałem sygnał ewakuacji, odkładam produkty i wychodzę.\n", getpid());
 
@@ -33,7 +46,7 @@ void evacuation_handler(int signum) {
         int produkt_id = sklep->klienci[klient_index].lista_zakupow[i].id;
         sem_wait(sem_id, produkt_id);
         kosz->produkty[produkt_id].ilosc += sklep->klienci[klient_index].lista_zakupow[i].ilosc;
-        strcpy(kosz->produkty[produkt_id].nazwa, sklep->klienci[klient_index].lista_zakupow[i].nazwa); // Copy product name
+        strcpy(kosz->produkty[produkt_id].nazwa, sklep->klienci[klient_index].lista_zakupow[i].nazwa); // Kopiowanie nazwy produktu
         sem_post(sem_id, produkt_id);
     }
 
@@ -45,6 +58,7 @@ void evacuation_handler(int signum) {
     cleanup_handler(signum);
 }
 
+// Losowanie listy zakupów
 void losuj_liste_zakupow(Sklep *sklep, Produkt lista_zakupow[], int *liczba_produktow) {
     *liczba_produktow = rand() % 3 + 2; // Min. 2, max. 4 produkty
     for (int i = 0; i < *liczba_produktow; i++) {
@@ -55,6 +69,7 @@ void losuj_liste_zakupow(Sklep *sklep, Produkt lista_zakupow[], int *liczba_prod
     }
 }
 
+// Znalezienie kasy z najmniejszą kolejką
 int znajdz_kase_z_najmniejsza_kolejka(Sklep *sklep, int sem_id) {
     int min_klienci = MAX_KLIENTOW + 1;
     int wybrana_kasa = -1;
@@ -72,27 +87,14 @@ int znajdz_kase_z_najmniejsza_kolejka(Sklep *sklep, int sem_id) {
     return wybrana_kasa;
 }
 
-
-void zakupy(Sklep *sklep, int sem_id, int klient_id) {
+// Zakupy klienta
+void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     signal(SIGUSR1, evacuation_handler);
-    key_t kierownik_key = ftok("/tmp", msq_kierownik);
-    int msqid = msgget(kierownik_key, 0666 | IPC_CREAT);
-    if (msqid == -1) {
-        perror("msgget");
-        exit(1);
-    }
 
     message_buf kierownik_rbuf;
-    
 
+    // Czekanie na wejście do sklepu
     while (1) {
-        if (msgrcv(msqid, &kierownik_rbuf, sizeof(kierownik_rbuf.mtext), 0, IPC_NOWAIT) != -1) {
-            if (strcmp(kierownik_rbuf.mtext, close_store_message) == 0) {
-                printf("Klient %d: Próbuje wejść do sklepu, ale już ogłoszono decyzję o zamknięciu.\n", klient_id);
-                //exit(0);
-                break;
-            }
-        }   
         sem_wait(sem_id, 12);
         if (sklep->ilosc_klientow < MAX_KLIENTOW) {
             sklep->ilosc_klientow++;
@@ -100,10 +102,11 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id) {
             break;
         } else {
             sem_post(sem_id, 12);
-            printf( "Klient %d: Sklep jest pełny, czekam przed wejściem...\n", klient_id);
+            printf("Klient %d: Sklep jest pełny, czekam przed wejściem...\n", klient_id);
             sleep(1); // Czekanie 1 sekundy przed ponownym sprawdzeniem
         }
     }
+
     // Losowanie listy zakupów
     Produkt lista_zakupow[MAX_PRODUKTOW] = {0};
     int liczba_produktow = 0;
@@ -151,34 +154,36 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id) {
     sklep->ilosc_klientow++;
     sem_post(sem_id, 12);
 
+    // Znalezienie kasy z najmniejszą kolejką
     int kasa_id;
     while ((kasa_id = znajdz_kase_z_najmniejsza_kolejka(sklep, sem_id)) == -1) {
         printf("Klient %d: Wszystkie kasy są zamknięte, czekam...\n", klient_id);
         usleep(1000000); // Czekanie 1 sekundy przed ponownym sprawdzeniem
     }
 
-    // Sprawdzenie, czy sklep jest zamknięty
-    if (sklep->ilosc_klientow == 0) {
-        printf("Klient %d: Sklep jest zamknięty, odkładam produkty do podajnikow i wychodzę\n", klient_id);
-        for (int i = 0; i < liczba_produktow; i++) {
-            int produkt_id = lista_zakupow[i].id;
-            sem_wait(sem_id, produkt_id);
-            sklep->podajniki[produkt_id].produkt.ilosc += lista_zakupow[i].ilosc;
-            sem_post(sem_id, produkt_id);
+    // // Sprawdzenie, czy sklep jest zamknięty
+    if (sklep->sklep_zamkniety) {
+            printf("Klient %d: Sklep zamknięty, odkładam produkty do podajników i wychodzę\n", klient_id);
+            for (int i = 0; i < liczba_produktow; i++) {
+                int produkt_id = lista_zakupow[i].id;
+                sem_wait(sem_id, produkt_id);
+                sklep->podajniki[produkt_id].produkt.ilosc += lista_zakupow[i].ilosc;
+                sem_post(sem_id, produkt_id);
+            }
+            sem_wait(sem_id, 12);
+            sklep->ilosc_klientow--;
+            sem_post(sem_id, 12);
+            return;
         }
-        sem_wait(sem_id, 12);
-        sklep->ilosc_klientow--;
-        sem_post(sem_id, 12);
-        return;
-    }
 
+    // Dodanie klienta do kolejki w wybranej kasie
     sem_wait(sem_id, 13 + kasa_id);
     sklep->kasjerzy[kasa_id].kolejka_klientow[sklep->kasjerzy[kasa_id].tail] = klient_index;
     sklep->kasjerzy[kasa_id].tail = (sklep->kasjerzy[kasa_id].tail + 1) % MAX_KLIENTOW;
     sklep->kasjerzy[kasa_id].ilosc_klientow++; // Zwiększenie liczby klientów w kasie
     sem_post(sem_id, 13 + kasa_id);
 
-    printf( "Klient %d: Ustawiam się w kolejce do kasy %d\n" , klient_id, kasa_id + 1);
+    printf("Klient %d: Ustawiam się w kolejce do kasy %d\n", klient_id, kasa_id + 1);
 
     // Otwieranie kolejki komunikatów
     key_t key = ftok("/tmp", kasa_id + 1);
@@ -188,29 +193,38 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id) {
         exit(1);
     }
     
-    message_buf rbuf;
     // Czekanie na komunikat od kasjera
+    message_buf rbuf;
     if (msgrcv(msqid_kasy, &rbuf, sizeof(rbuf.mtext), getpid(), 0) == -1) {
-        perror("msgrcv klient");
-        exit(1);
+        if (errno == EIDRM) {
+            // Kolejka została usunięta - kończymy normalnie
+            printf("Klient %d: Kolejka została usunięta, kończę pracę\n", klient_id);
+            exit(0);
+        } else {
+            perror("msgrcv klient");
+            exit(1);
+        }
+    } else {
+        printf("Klient %d: Otrzymałem komunikat od kasjera, mogę opuścić sklep\n", klient_id);
     }
-    printf( "Klient %d: Otrzymałem komunikat od kasjera, mogę opuścić sklep\n" , klient_id);
     // Klient opuszcza sklep
     sem_wait(sem_id, 12);
     sklep->ilosc_klientow--;
     sem_post(sem_id, 12);
-    printf( "Klient %d: Opuszczam sklep\n" , klient_id);
+    printf("Klient %d: Opuszczam sklep\n", klient_id);
+
+    // Wysłanie potwierdzenia do kierownika o zakończeniu procesu
+    // message_buf sbuf;
+    // sbuf.mtype = 1;
+    // strcpy(sbuf.mtext, acknowledgment_to_kierownik);
+    // if (msgsnd(msqid, &sbuf, sizeof(sbuf.mtext), 0) == -1) {
+    //     perror("msgsnd");
+    //     exit(1);
+    // }
 }
 
-int main(){
-    signal(SIGTERM, cleanup_handler);
-
-    key_t key = ftok("/tmp", msq_kierownik);
-    int msqid = msgget(key, 0666 | IPC_CREAT);
-    if (msqid == -1) {
-        perror("msgget");
-        exit(1);
-    }
+int main() {
+    setup_signal_handlers(cleanup_handler, evacuation_handler);
 
     shm_id = shmget(SHM_KEY, sizeof(Sklep), 0666);
     if (shm_id < 0) {
@@ -242,9 +256,23 @@ int main(){
         exit(1);
     }
 
-    while(1) {
+    key_t key = ftok("/tmp", msq_klient);
+    msqid_klient = msgget(key, 0666 | IPC_CREAT);
+    if (msqid_klient == -1) {
+        perror("msgget");
+        exit(1);
+    }
+
+    key_t kierownik_key = ftok("/tmp", msq_kierownik);
+    kierownik_msqid = msgget(kierownik_key, 0666 | IPC_CREAT);
+    if (kierownik_msqid == -1) {
+        perror("msgget");
+        exit(1);
+    }
+
+    while (1) {
         message_buf rbuf;
-        if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1) {
+        if (msgrcv(msqid_klient, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1) {
             if (strcmp(rbuf.mtext, close_store_message) == 0) {
                 printf("Klient main: Otrzymałem komunikat o zamknięciu sklepu, nie tworzę nowych klientów.\n");
                 break;
@@ -252,13 +280,11 @@ int main(){
         }
         pid_t pid = fork();
         if (pid == 0) { // Proces potomny
-            srand(time(NULL) ^ (getpid()<<16)); // Inicjalizacja generatora liczb losowych na podstawie PID
-            zakupy(sklep, sem_id, getpid());
-            shmdt(sklep);
-            shmdt(kosz);
+            srand(time(NULL) ^ (getpid() << 16));
+            zakupy(sklep, sem_id, getpid(), msqid_klient);
             exit(0);
         } else if (pid > 0) { // Proces macierzysty
-            usleep(1000000); // 1 sekunda
+            sleep(rand() % 3 + 1);
         } else {
             perror("fork");
             exit(1);
@@ -268,11 +294,16 @@ int main(){
     
 
     // Czekanie na zakończenie wszystkich procesów potomnych
-    while(1) {
-        wait(NULL);
+    while (wait(NULL) > 0);
+    // Wysłanie potwierdzenia do kierownika
+    message_buf sbuf;
+    sbuf.mtype = 1;
+    strcpy(sbuf.mtext, acknowledgment_to_kierownik);
+    if (msgsnd(kierownik_msqid, &sbuf, sizeof(sbuf.mtext), 0) == -1) {
+        perror("msgsnd kierownik");
+        exit(1);
     }
 
-    shmdt(sklep);
-    shmdt(kosz);
+    cleanup_handler(0);
     return 0;
 }
