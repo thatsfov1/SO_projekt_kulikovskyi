@@ -142,7 +142,6 @@ void wait_for_acknowledgments() {
 
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną i wysyła potwierdzenia
 void cleanup_handler(int signum) {
-    //wait_for_acknowledgments();
 
     if (sklep->inwentaryzacja) {
         print_inventory();
@@ -169,13 +168,11 @@ void cleanup_handler(int signum) {
 void evacuation_handler(int signum) {
     printf("Kierownik: Rozpoczynam ewakuację sklepu...\n");
 
-    kill(0, SIGUSR1);
-
     while (sklep->ilosc_klientow > 0) {
         sleep(1);
     }
 
-    cleanup_handler(SIGUSR1);
+    cleanup_handler(signum);
 }
 
 int main() {
@@ -192,15 +189,15 @@ int main() {
     //     printf(BLUE "Kierownik: Inwentaryzacja nie będzie przeprowadzona.\n" RESET);
     // }
 
-    // int czy_bedzie_ewakuacja = rand() % 10 + 1;
-    // if (czy_bedzie_ewakuacja == 1) {
-    //     sleep(rand() % CZAS_PRACY + 5);
-    //     if (kill(0, SIGUSR1) == 0) {
-    //         printf("Sygnał o ewakuację wysłany\n");
-    //     } else {
-    //         perror("Błąd wysyłania sygnału o ewakuację");
-    //     }
-    // }
+    int czy_bedzie_ewakuacja = 1;
+    if (czy_bedzie_ewakuacja == 1) {
+        sleep(rand() % CZAS_PRACY + 5);
+        if (kill(0, SIGUSR1) == 0) {
+            printf("Sygnał o ewakuację wysłany\n");
+        } else {
+            perror("Błąd wysyłania sygnału o ewakuację");
+        }
+    }
 
     shm_id = shmget(SHM_KEY, sizeof(Sklep), 0666);
     if (shm_id < 0) {
@@ -226,6 +223,8 @@ int main() {
 
     sleep(CZAS_PRACY);
     send_close_message();
+
+    
     wait_for_acknowledgments();
     cleanup_handler(0);
     return 0;
