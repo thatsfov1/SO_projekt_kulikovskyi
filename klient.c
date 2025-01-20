@@ -83,14 +83,16 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id) {
     }
 
     message_buf kierownik_rbuf;
-    if (msgrcv(msqid, &kierownik_rbuf, sizeof(kierownik_rbuf.mtext), 0, IPC_NOWAIT) != -1) {
-        if (strcmp(kierownik_rbuf.mtext, close_store_message) == 0) {
-            printf("Klient %d: Próbuje wejść do sklepu, ale już ogłoszono decyzję o zamknięciu.\n", klient_id);
-            exit(0);
-        }
-    }
+    
 
     while (1) {
+        if (msgrcv(msqid, &kierownik_rbuf, sizeof(kierownik_rbuf.mtext), 0, IPC_NOWAIT) != -1) {
+            if (strcmp(kierownik_rbuf.mtext, close_store_message) == 0) {
+                printf("Klient %d: Próbuje wejść do sklepu, ale już ogłoszono decyzję o zamknięciu.\n", klient_id);
+                //exit(0);
+                break;
+            }
+        }   
         sem_wait(sem_id, 12);
         if (sklep->ilosc_klientow < MAX_KLIENTOW) {
             sklep->ilosc_klientow++;
@@ -241,6 +243,13 @@ int main(){
     }
 
     while(1) {
+        message_buf rbuf;
+        if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1) {
+            if (strcmp(rbuf.mtext, close_store_message) == 0) {
+                printf("Klient main: Otrzymałem komunikat o zamknięciu sklepu, nie tworzę nowych klientów.\n");
+                break;
+            }
+        }
         pid_t pid = fork();
         if (pid == 0) { // Proces potomny
             srand(time(NULL) ^ (getpid()<<16)); // Inicjalizacja generatora liczb losowych na podstawie PID
@@ -253,13 +262,6 @@ int main(){
         } else {
             perror("fork");
             exit(1);
-        }
-        message_buf rbuf;
-        if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1) {
-            if (strcmp(rbuf.mtext, close_store_message) == 0) {
-                printf("Klient: Otrzymałem komunikat o zamknięciu sklepu, kończę pracę.\n");
-                break;
-            }
         }
     }
 

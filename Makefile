@@ -1,41 +1,19 @@
-CC = gcc
-CFLAGS = -Wall -Wextra -std=c99 -I.
+all: main kierownik klient piekarz kasjer 
 
-# Executable names
-EXECUTABLES = main klient kasjer piekarz kierownik
+main: main.c
+	gcc main.c funkcje.c -o main -lpthread
 
-# Source files
-SRCS = main.c klient.c kasjer.c piekarz.c kierownik.c funkcje.c
+kierownik: kierownik.c
+	gcc kierownik.c funkcje.c -o kierownik -lpthread
 
-# Object files
-OBJS = $(SRCS:.c=.o)
+klient: klient.c
+	gcc klient.c funkcje.c -o klient -lpthread
 
-# Phony targets
-.PHONY: all clean
+piekarz: piekarz.c
+	gcc piekarz.c funkcje.c -o piekarz -lpthread
 
-# Default target
-all: $(EXECUTABLES)
+kasjer: kasjer.c
+	gcc kasjer.c funkcje.c -o kasjer -lpthread
 
-# Compile and link each executable
-main: main.o funkcje.o
-    $(CC) $(CFLAGS) -o $@ $^
-
-klient: klient.o funkcje.o
-    $(CC) $(CFLAGS) -o $@ $^
-
-kasjer: kasjer.o funkcje.o
-    $(CC) $(CFLAGS) -o $@ $^
-
-piekarz: piekarz.o funkcje.o
-    $(CC) $(CFLAGS) -o $@ $^
-
-kierownik: kierownik.o funkcje.o
-    $(CC) $(CFLAGS) -o $@ $^
-
-# Compile object files
-%.o: %.c struktury.h funkcje.h
-    $(CC) $(CFLAGS) -c $< -o $@
-
-# Clean up
 clean:
-    rm -f $(EXECUTABLES) *.o
+	rm -r main kierownik klient piekarz kasjer 

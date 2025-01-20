@@ -44,7 +44,10 @@ void cleanup_handler(int signum) {
             msgctl(msqid, IPC_RMID, NULL);
     }
 
-    printf("Kierownik: Wszyscy klienci opuścili sklep. Sukces ewakuacji \n");
+    printf(GREEN "Kierownik: Wszyscy klienci opuścili sklep. \n" RESET);
+    if(signum == SIGUSR1) {
+        printf(GREEN "Kierownik: Ewakuacja zakończona. \n" RESET);
+    }
     exit(0);
 }
 
@@ -56,15 +59,17 @@ void send_close_message() {
         exit(1);
     }
 
-    message_buf sbuf;
-    sbuf.mtype = 1;
-    strcpy(sbuf.mtext, close_store_message);
-
-    if (msgsnd(msqid, &sbuf, sizeof(sbuf.mtext), 0) == -1) {
-        perror("msgsnd");
-        exit(1);
+    for (int i = 0; i < 10; i++) {
+        message_buf sbuf;
+        sbuf.mtype = 1;
+        strcpy(sbuf.mtext, close_store_message);
+        if (msgsnd(msqid, &sbuf, sizeof(sbuf.mtext), 0) == -1) {
+            perror("msgsnd");
+            exit(1);
+        }
     }
-    printf("Kierownik: Wkrótce sklep zamyka się, wszyscy klienci stojący w kolejce do kas będą obsłużeni, innych poproszę odłożyć towary do podajników i wyjść ze sklepu\n");
+    
+    printf(BLUE "Kierownik: Wkrótce sklep zamyka się, wszyscy klienci stojący w kolejce do kas będą obsłużeni, innych poproszę odłożyć towary do podajników i wyjść ze sklepu\n" RESET);
 }
 
 void evacuation_handler(int signum) {
@@ -76,23 +81,32 @@ void evacuation_handler(int signum) {
         sleep(1);
     }
 
-    cleanup_handler(signum);
+    cleanup_handler(SIGUSR1);
 }
 
 int main() {
-    signal(SIGTERM, cleanup_handler);
-    signal(SIGUSR1, evacuation_handler);
-
+    setup_signal_handlers(cleanup_handler, evacuation_handler);
     srand(time(NULL));
 
     // Losowanie czy będzie inwentaryzacja
     int czy_bedzie_inwentaryzacja = rand() % 5 + 1;
     if (czy_bedzie_inwentaryzacja==1) {
-        printf("Kierownik: Inwentaryzacja będzie przeprowadzona.\n");
+        printf(BLUE "Kierownik: Inwentaryzacja będzie przeprowadzona.\n" RESET);
         sklep->inwentaryzacja = 1;
     } else {
-        printf("Kierownik: Inwentaryzacja nie będzie przeprowadzona.\n");
+        printf(BLUE "Kierownik: Inwentaryzacja nie będzie przeprowadzona.\n" RESET);
     }
+    
+    // Losowanie czy będzie ewakuacja
+    int czy_bedzie_ewakuacja = rand() % 10+1;
+    if (czy_bedzie_ewakuacja==1) {
+        sleep(rand() % CZAS_PRACY + 5);
+        if (kill(0, SIGUSR1) == 0) {
+                printf("Sygnał o ewakuację wysłany\n");
+            } else {
+                perror("Błąd wysyłania sygnału o ewakuację");
+            }
+    } 
 
     shm_id = shmget(SHM_KEY, sizeof(Sklep), 0666);
     if (shm_id < 0) {
@@ -118,17 +132,6 @@ int main() {
 
     sleep(CZAS_PRACY);
     send_close_message();
-
-    char ch;
-    while ((ch = getchar()) != EOF) {
-        if (ch == 'e') {
-            if (kill(0, SIGUSR1) == 0) {
-                printf("Sygnał o ewakuację wysłany\n");
-            } else {
-                perror("Błąd wysyłania sygnału o ewakuację");
-            }
-        }
-    }
 
     return 0;
 }

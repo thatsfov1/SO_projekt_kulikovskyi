@@ -68,7 +68,7 @@ void wypiekaj_produkty(Sklep *sklep, int sem_id) {
             sem_post(sem_id, i);  // Zwalniamy semafor
         }
 
-        sleep(10);  // Piekarz czeka 10 sekund przed kolejnym wypiekiem
+        sleep(5);  // Piekarz czeka 10 sekund przed kolejnym wypiekiem
 
     }
 }

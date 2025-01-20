@@ -10,7 +10,7 @@
 
 Sklep *sklep;
 int sem_id;
-
+int sklep_zamkniety = 0;
 int kasa_id;
 
 void cleanup_handler(int signum) {
@@ -41,7 +41,7 @@ void evacuation_handler(int signum) {
 
 
 void monitoruj_kasy(Sklep *sklep, int sem_id) {
-    while (1) {
+    while (!sklep_zamkniety) {
         sem_wait(sem_id, 12);
         int ilosc_klientow = sklep->ilosc_klientow;
         sem_post(sem_id, 12);
@@ -95,8 +95,6 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
         exit(1);
     }
 
-    int sklep_zamkniety = 0;
-
       while (1) {
         if (msgrcv(kierownik_msqid, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1) {
             if (strcmp(rbuf.mtext, close_store_message) == 0) {
@@ -140,7 +138,7 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
             break;
         }
 
-        usleep(1000000);
+        usleep(100000);
     }
     // if (sklep->inwentaryzacja) {
     //     printf("Kasa %d: Sprzedano: ", kasa_id + 1);
