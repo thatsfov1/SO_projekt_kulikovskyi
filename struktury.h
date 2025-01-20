@@ -12,6 +12,7 @@
 #define KOSZ_KEY 1111
 #define CZAS_PRACY 60
 #define msq_kierownik 4
+#define msq_piekarz 5
 #define close_store_message "ZAMKNIJ"
 
 // Kolory

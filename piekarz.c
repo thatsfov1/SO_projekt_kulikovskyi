@@ -13,6 +13,18 @@
 Sklep *sklep;
 
 void cleanup_handler(int signum) {
+    if (sklep->inwentaryzacja) {
+            key_t key = ftok("/tmp", msq_piekarz);
+            int msqid = msgget(key, 0666 | IPC_CREAT);
+            if (msqid != -1) {
+                message_buf sbuf;
+                sbuf.mtype = 1;
+                for (int i = 0; i < MAX_PRODUKTOW; i++) {
+                    sprintf(sbuf.mtext, "%d", sklep->statystyki_piekarza.wyprodukowane[i]);
+                    msgsnd(msqid, &sbuf, sizeof(sbuf.mtext), 0);
+                }
+            }
+    }
     shmdt(sklep);
     exit(0);
 }

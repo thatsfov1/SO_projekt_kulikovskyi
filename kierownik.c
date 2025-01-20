@@ -24,6 +24,30 @@ void cleanup_handler(int signum) {
             }
         }
         printf("\n");
+
+        key_t piekarz_key = ftok("/tmp", msq_piekarz);
+        int piekarz_msqid = msgget(piekarz_key, 0666);
+        if (piekarz_msqid != -1) {
+            message_buf rbuf;
+            for (int i = 0; i < MAX_PRODUKTOW; i++) {
+                if (msgrcv(piekarz_msqid, &rbuf, sizeof(rbuf.mtext), 0, 0) != -1) {
+                    printf("Piekarz: Wyprodukował %s %s szt.\n", sklep->podajniki[i].produkt.nazwa, rbuf.mtext);
+                }
+            }
+        }
+
+        for (int i = 0; i < MAX_KASJEROW; i++) {
+            key_t kasjer_key = ftok("/tmp", i + 1);
+            int kasjer_msqid = msgget(kasjer_key, 0666);
+            if (kasjer_msqid != -1) {
+                message_buf rbuf;
+                for (int j = 0; j < MAX_PRODUKTOW; j++) {
+                    if (msgrcv(kasjer_msqid, &rbuf, sizeof(rbuf.mtext), 0, 0) != -1) {
+                        printf("Kasjer %d: Sprzedał %s %s szt.\n", i + 1, sklep->podajniki[j].produkt.nazwa, rbuf.mtext);
+                    }
+                }
+            }
+        }
     }
     
     if(signum == SIGUSR1) {
@@ -89,7 +113,8 @@ int main() {
     srand(time(NULL));
 
     // Losowanie czy będzie inwentaryzacja
-    int czy_bedzie_inwentaryzacja = rand() % 5 + 1;
+    //rand() % 5 +
+    int czy_bedzie_inwentaryzacja =  1;
     if (czy_bedzie_inwentaryzacja==1) {
         printf(BLUE "Kierownik: Inwentaryzacja będzie przeprowadzona.\n" RESET);
         sklep->inwentaryzacja = 1;

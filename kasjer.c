@@ -15,13 +15,18 @@ int kasa_id;
 
 void cleanup_handler(int signum) {
     if (sklep->inwentaryzacja) {
-        printf("Kasa %d: Sprzedano: ", kasa_id + 1);
-        for (int i = 0; i < MAX_PRODUKTOW; i++) {
-            if (sklep->kasjerzy[kasa_id].ilosc_sprzedanych[i] > 0) {
-                printf("%s %d szt. ", sklep->podajniki[i].produkt.nazwa, sklep->kasjerzy[kasa_id].ilosc_sprzedanych[i]);
+    for (int i = 0; i < MAX_KASJEROW; i++){
+            key_t key = ftok("/tmp", i+1);
+            int msqid = msgget(key, 0666 | IPC_CREAT);
+            if (msqid != -1) {
+                message_buf sbuf;
+                sbuf.mtype = 2;
+                for (int i = 0; i < MAX_PRODUKTOW; i++) {
+                    sprintf(sbuf.mtext, "%d", sklep->kasjerzy[kasa_id].ilosc_sprzedanych[i]);
+                    msgsnd(msqid, &sbuf, sizeof(sbuf.mtext), 0);
+                }
             }
         }
-        printf("\n");
     }
     shmdt(sklep);
     for (int i = 0; i < MAX_KASJEROW; i++) {
