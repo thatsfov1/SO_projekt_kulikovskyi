@@ -13,6 +13,7 @@
 Sklep *sklep;
 Kosz *kosz;
 int shm_id;
+int sem_id;
 int kosz_id;
 int msqid;
 
@@ -147,7 +148,7 @@ void cleanup_handler(int signum) {
         print_inventory();
     }
 
-    if (signum == SIGUSR1) {
+    if (signum) {
         print_kosz();
     }
 
@@ -156,7 +157,7 @@ void cleanup_handler(int signum) {
     
 
     printf(GREEN "Kierownik: Wszyscy klienci opuścili sklep. \n" RESET);
-    if (signum == SIGUSR1) {
+    if (signum) {
         printf(GREEN "Kierownik: Ewakuacja zakończona. \n" RESET);
     }
 
@@ -171,8 +172,9 @@ void evacuation_handler(int signum) {
     while (sklep->ilosc_klientow > 0) {
         sleep(1);
     }
+    //send_close_message_to_main();
 
-    cleanup_handler(signum);
+    cleanup_handler(SIGUSR1);
 }
 
 int main() {
@@ -181,22 +183,10 @@ int main() {
 
     initialize_message_queue();
 
-    // int czy_bedzie_inwentaryzacja = 1;
-    // if (czy_bedzie_inwentaryzacja == 1) {
-    //     printf(BLUE "Kierownik: Inwentaryzacja będzie przeprowadzona.\n" RESET);
-    //     sklep->inwentaryzacja = 1;
-    // } else {
-    //     printf(BLUE "Kierownik: Inwentaryzacja nie będzie przeprowadzona.\n" RESET);
-    // }
-
-    int czy_bedzie_ewakuacja = 1;
-    if (czy_bedzie_ewakuacja == 1) {
-        sleep(rand() % CZAS_PRACY + 5);
-        if (kill(0, SIGUSR1) == 0) {
-            printf("Sygnał o ewakuację wysłany\n");
-        } else {
-            perror("Błąd wysyłania sygnału o ewakuację");
-        }
+    sem_id = semget(SEM_KEY, 0, 0666);
+    if (sem_id == -1) {
+        perror("semget");
+        exit(1);
     }
 
     shm_id = shmget(SHM_KEY, sizeof(Sklep), 0666);
@@ -219,6 +209,24 @@ int main() {
     if (kosz == (Kosz *)-1) {
         perror("shmat kosz");
         exit(1);
+    }
+
+    // int czy_bedzie_inwentaryzacja = 1;
+    // if (czy_bedzie_inwentaryzacja == 1) {
+    //     printf(BLUE "Kierownik: Inwentaryzacja będzie przeprowadzona.\n" RESET);
+    //     sklep->inwentaryzacja = 1;
+    // } else {
+    //     printf(BLUE "Kierownik: Inwentaryzacja nie będzie przeprowadzona.\n" RESET);
+    // }
+
+    int czy_bedzie_ewakuacja = 1;
+    if (czy_bedzie_ewakuacja == 1) {
+        sleep(rand() % CZAS_PRACY + 5);
+        if (kill(0, SIGUSR1) == 0) {
+            printf("Sygnał o ewakuację wysłany\n");
+        } else {
+            perror("Błąd wysyłania sygnału o ewakuację");
+        }
     }
 
     sleep(CZAS_PRACY);

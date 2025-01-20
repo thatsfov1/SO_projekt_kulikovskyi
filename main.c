@@ -19,6 +19,23 @@ Kosz *kosz;
 
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną i usuwa semafory oraz kolejki komunikatów
 void cleanup(int signum) {
+    // if (signum == SIGUSR1) {
+    //     printf(RED "\nEwakuacja w toku...\n" RESET);
+        
+    //     // Wait for message from kierownik
+    //     key_t key = ftok("/tmp", msq_main);
+    //     int msqid = msgget(key, 0666 | IPC_CREAT);
+    //     message_buf rbuf;
+        
+    //     while (1) {
+    //         if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), 0, 0) != -1) {
+    //             if (strcmp(rbuf.mtext, ready_to_close) == 0) {
+    //                 break;
+    //             }
+    //         }
+    //         sleep(1);
+    //     }
+    // }
     printf(RED "\nZamykanie sklepu...\n" RESET);
 
     // Wysłanie sygnału do wszystkich procesów w grupie
