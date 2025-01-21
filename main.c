@@ -92,14 +92,14 @@ int main() {
     }
 
     // Tworzenie semaforów
-    sem_id = semget(SEM_KEY, 16, IPC_CREAT | 0666);
+    sem_id = semget(SEM_KEY, 17, IPC_CREAT | 0666);
     if (sem_id == -1) {
         perror("semget");
         exit(1);
     }
 
     // Inicjalizacja semaforów
-    for (int i = 0; i < 16; i++) {
+    for (int i = 0; i < 17; i++) {
         semctl(sem_id, i, SETVAL, 1);
     }
 

@@ -13,54 +13,66 @@ int sem_id;
 int sklep_zamkniety = 0;
 int kasa_id;
 
-void print_inventory(){
+void print_inventory()
+{
     int sprzedal_cos = 0;
     printf("Kasa %d: ", kasa_id + 1);
-        
-    for (int j = 0; j < MAX_PRODUKTOW; j++) {
-        if (sklep->kasjerzy[kasa_id].ilosc_sprzedanych[j] > 0) {
-            if (!sprzedal_cos) {
+
+    for (int j = 0; j < MAX_PRODUKTOW; j++)
+    {
+        if (sklep->kasjerzy[kasa_id].ilosc_sprzedanych[j] > 0)
+        {
+            if (!sprzedal_cos)
+            {
                 printf("Sprzedano: ");
                 sprzedal_cos = 1;
             }
-            printf("%s: %d szt. ", 
-                sklep->podajniki[j].produkt.nazwa, 
-                sklep->kasjerzy[kasa_id].ilosc_sprzedanych[j]);
+            printf("%s: %d szt. ",
+                   sklep->podajniki[j].produkt.nazwa,
+                   sklep->kasjerzy[kasa_id].ilosc_sprzedanych[j]);
         }
     }
-        
-    if (!sprzedal_cos) {
+
+    if (!sprzedal_cos)
+    {
         printf("brak sprzedanych produktów przez kasę");
     }
     printf("\n");
 }
 
-void send_acknowledgment(){
+void send_acknowledgment()
+{
     key_t kierownik_key = ftok("/tmp", msq_kierownik);
     int kierownik_msqid = msgget(kierownik_key, 0666 | IPC_CREAT);
-    if (kierownik_msqid == -1) {
+    if (kierownik_msqid == -1)
+    {
         perror("msgget kierownik");
         exit(1);
     }
     message_buf sbuf;
     sbuf.mtype = 1;
     strcpy(sbuf.mtext, acknowledgment_to_kierownik);
-    if (msgsnd(kierownik_msqid, &sbuf, sizeof(sbuf.mtext), 0) == -1) {
+    if (msgsnd(kierownik_msqid, &sbuf, sizeof(sbuf.mtext), 0) == -1)
+    {
         perror("msgsnd");
         exit(1);
     }
 }
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną i wysyła potwierdzenia
-void cleanup_handler(int signum) {
-    if (sklep->inwentaryzacja && signum != SIGUSR1) {
-            print_inventory();
+void cleanup_handler(int signum)
+{
+    if (sklep->inwentaryzacja && signum != SIGUSR1)
+    {
+        print_inventory();
     }
 
     shmdt(sklep);
-    for (int i = 0; i < MAX_KASJEROW; i++) {
+    for (int i = 0; i < MAX_KASJEROW; i++)
+    {
         key_t key = ftok("/tmp", i + 1);
         int msqid = msgget(key, 0666);
-        if (msqid != -1) {
+        if (msqid != -1)
+        {
             msgctl(msqid, IPC_RMID, NULL);
         }
     }
@@ -68,29 +80,37 @@ void cleanup_handler(int signum) {
 }
 
 // Obsługa sygnału ewakuacji
-void evacuation_handler(int signum) {
+void evacuation_handler(int signum)
+{
     printf("Kasa %d: Ewakuacja!, zamykam się.\n", kasa_id + 1);
     cleanup_handler(SIGUSR1);
 }
 
 // Funkcja monitorująca liczbę klientów i zarządzająca kasami
-void monitoruj_kasy(Sklep *sklep, int sem_id) {
-    while (!sklep->sklep_zamkniety) { 
+void monitoruj_kasy(Sklep *sklep, int sem_id)
+{
+    while (!sklep->sklep_zamkniety)
+    {
         sem_wait(sem_id, 12);
         int ilosc_klientow = sklep->ilosc_klientow;
         sem_post(sem_id, 12);
 
         // Zarządzanie kasami
-        if (ilosc_klientow <= 10) {
+        if (ilosc_klientow <= 10)
+        {
             sem_wait(sem_id, 15);
-            if (!sklep->sklep_zamkniety) {
+            if (!sklep->sklep_zamkniety)
+            {
                 sklep->kasjerzy[2].ilosc_klientow = -1;
                 printf("Kasa 3: Zamknięta, mniej niż 11 klientów w sklepie.\n");
             }
             sem_post(sem_id, 15);
-        } else if (ilosc_klientow > 10) {
+        }
+        else if (ilosc_klientow > 10)
+        {
             sem_wait(sem_id, 15);
-            if (sklep->kasjerzy[2].ilosc_klientow == -1 && !sklep->sklep_zamkniety) {
+            if (sklep->kasjerzy[2].ilosc_klientow == -1 && !sklep->sklep_zamkniety)
+            {
                 sklep->kasjerzy[2].ilosc_klientow = 0;
                 printf("Kasa 3: Otwarto, więcej niż 10 klientów w sklepie.\n");
             }
@@ -102,8 +122,10 @@ void monitoruj_kasy(Sklep *sklep, int sem_id) {
 }
 
 // Pobranie ID klienta z kolejki
-int pobierz_id_klienta_z_kolejki(Sklep *sklep, int kasa_id) {
-    if (sklep->kasjerzy[kasa_id].head == sklep->kasjerzy[kasa_id].tail) {
+int pobierz_id_klienta_z_kolejki(Sklep *sklep, int kasa_id)
+{
+    if (sklep->kasjerzy[kasa_id].head == sklep->kasjerzy[kasa_id].tail)
+    {
         // Kolejka jest pusta
         return -1;
     }

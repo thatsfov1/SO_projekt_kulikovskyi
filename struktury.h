@@ -19,6 +19,7 @@
 #define acknowledgment_to_kierownik "ACK"
 #define klient_rozliczony "OK"
 #define ready_to_close "READY_TO_CLOSE"
+#define SEM_CLOSE 16
 
 // Kolory
 #define RED "\033[31m"

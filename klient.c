@@ -21,16 +21,19 @@ int klient_index;
 int msqid_klient;
 int kierownik_msqid;
 
-void cleanup_message_queues() {
+void cleanup_message_queues()
+{
     key_t key = ftok("/tmp", msq_klient);
     msqid_klient = msgget(key, 0666);
-    if (msqid_klient != -1) {
+    if (msqid_klient != -1)
+    {
         msgctl(msqid_klient, IPC_RMID, NULL);
     }
 }
 
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną
-void cleanup_handler(int signum) {
+void cleanup_handler(int signum)
+{
     cleanup_message_queues();
     shmdt(sklep);
     shmdt(kosz);
@@ -38,11 +41,13 @@ void cleanup_handler(int signum) {
 }
 
 // Obsługa sygnału ewakuacji
-void evacuation_handler(int signum) {
+void evacuation_handler(int signum)
+{
     printf("Klient %d: Ewakuacja!, odkładam produkty do kosza i wychodzę.\n", getpid());
 
     // Odkładanie produktów do kosza
-    for (int i = 0; i < sklep->klienci[klient_index].ilosc_zakupow; i++) {
+    for (int i = 0; i < sklep->klienci[klient_index].ilosc_zakupow; i++)
+    {
         int produkt_id = sklep->klienci[klient_index].lista_zakupow[i].id;
         sem_wait(sem_id, produkt_id);
         kosz->produkty[produkt_id].ilosc += sklep->klienci[klient_index].lista_zakupow[i].ilosc;
@@ -59,25 +64,31 @@ void evacuation_handler(int signum) {
 }
 
 // Losowanie listy zakupów
-void losuj_liste_zakupow(Sklep *sklep, Produkt lista_zakupow[], int *liczba_produktow) {
+void losuj_liste_zakupow(Sklep *sklep, Produkt lista_zakupow[], int *liczba_produktow)
+{
     *liczba_produktow = rand() % 3 + 2; // Min. 2, max. 4 produkty
-    for (int i = 0; i < *liczba_produktow; i++) {
+    for (int i = 0; i < *liczba_produktow; i++)
+    {
         int produkt_id = rand() % MAX_PRODUKTOW;
         Produkt produkt = sklep->podajniki[produkt_id].produkt;
-        lista_zakupow[i] = produkt;  // Kopiowanie całej struktury wraz z ID
+        lista_zakupow[i] = produkt; // Kopiowanie całej struktury wraz z ID
         lista_zakupow[i].ilosc = rand() % 5 + 1;
     }
 }
 
 // Znalezienie kasy z najmniejszą kolejką
-int znajdz_kase_z_najmniejsza_kolejka(Sklep *sklep, int sem_id) {
+int znajdz_kase_z_najmniejsza_kolejka(Sklep *sklep, int sem_id)
+{
     int min_klienci = MAX_KLIENTOW + 1;
     int wybrana_kasa = -1;
-    for (int i = 0; i < MAX_KASJEROW; i++) {
+    for (int i = 0; i < MAX_KASJEROW; i++)
+    {
         sem_wait(sem_id, 13 + i);
-        if (sklep->kasjerzy[i].ilosc_klientow != -1) { // Sprawdzenie, czy kasa jest otwarta
+        if (sklep->kasjerzy[i].ilosc_klientow != -1)
+        { // Sprawdzenie, czy kasa jest otwarta
             int liczba_klientow = (sklep->kasjerzy[i].tail + MAX_KLIENTOW - sklep->kasjerzy[i].head) % MAX_KLIENTOW;
-            if (liczba_klientow < min_klienci) {
+            if (liczba_klientow < min_klienci)
+            {
                 min_klienci = liczba_klientow;
                 wybrana_kasa = i;
             }
