@@ -60,6 +60,7 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     while (1) {
         sem_wait(sem_id, 12);
         if (sklep->ilosc_klientow < MAX_KLIENTOW) {
+            klient_index = sklep->ilosc_klientow;
             sklep->ilosc_klientow++;
             sem_post(sem_id, 12);
             break;
@@ -76,7 +77,6 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
 
     // Czyszczenie struktury klienta
     sem_wait(sem_id, 12);
-    klient_index = sklep->ilosc_klientow;
     memset(&sklep->klienci[klient_index], 0, sizeof(Klient));
     sem_post(sem_id, 12);
 
@@ -114,7 +114,6 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     sklep->klienci[klient_index].klient_id = klient_id;
     memcpy(sklep->klienci[klient_index].lista_zakupow, lista_zakupow, sizeof(lista_zakupow));
     sklep->klienci[klient_index].ilosc_zakupow = liczba_produktow;
-    sklep->ilosc_klientow++;
     sem_post(sem_id, 12);
 
     // // Sprawdzenie, czy sklep jest zamknięty
@@ -127,9 +126,10 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
                 sem_post(sem_id, produkt_id);
             }
             sem_wait(sem_id, 12);
+            sklep->klienci[klient_index].klient_id = 0;
             sklep->ilosc_klientow--;
             sem_post(sem_id, 12);
-            return;
+            cleanup_handler();
         }
 
     // Znalezienie kasy z najmniejszą kolejką
@@ -145,6 +145,7 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     sklep->kasjerzy[kasa_id].tail = (sklep->kasjerzy[kasa_id].tail + 1) % MAX_KLIENTOW;
     sklep->kasjerzy[kasa_id].ilosc_klientow++; // Zwiększenie liczby klientów w kasie
     sem_post(sem_id, 13 + kasa_id);
+ 
 
     printf("Klient %d: Ustawiam się w kolejce do kasy %d\n", klient_id, kasa_id + 1);
 
@@ -161,7 +162,6 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     if (msgrcv(msqid_kasy, &rbuf, sizeof(rbuf.mtext), getpid(), 0) != -1) {
         printf("Klient %d: Byłem obsłużony, mogę opuścić sklep\n", klient_id);
     } else {
-            perror("msgrcv klient");
             exit(1);
     }
     
@@ -234,7 +234,7 @@ int main() {
                 zakupy(sklep, sem_id, getpid(), msqid_klient);
                 exit(0);
             } else if (pid > 0) { // Proces macierzysty
-                sleep(rand()%3+1);
+                sleep(1);
             } else {
                 perror("fork");
                 exit(1);
@@ -243,7 +243,8 @@ int main() {
     }
 
     // Czekanie na zakończenie wszystkich procesów potomnych
-    while (wait(NULL) > 0);
+    pid_t pid;
+    while ((pid = waitpid(-1, NULL, WNOHANG)) > 0);
     
     // Wysłanie potwierdzenia do kierownika
     message_buf sbuf;

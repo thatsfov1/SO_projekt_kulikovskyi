@@ -216,7 +216,7 @@ int main(){
         exit(1);
     }
 
-    int czy_bedzie_ewakuacja = 1;
+    int czy_bedzie_ewakuacja = 2;
     if (czy_bedzie_ewakuacja == 1)
     {
         sleep(rand() % CZAS_PRACY + 5);

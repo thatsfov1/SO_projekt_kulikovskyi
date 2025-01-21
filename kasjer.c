@@ -122,15 +122,19 @@ void monitoruj_kasy(Sklep *sklep, int sem_id)
 // Pobranie ID klienta z kolejki
 int pobierz_id_klienta_z_kolejki(Sklep *sklep, int kasa_id)
 {
-    if (sklep->kasjerzy[kasa_id].head == sklep->kasjerzy[kasa_id].tail)
-    {
+    if (sklep->kasjerzy[kasa_id].head == sklep->kasjerzy[kasa_id].tail) {
         // Kolejka jest pusta
         return -1;
     }
-
+    
     int klient_index = sklep->kasjerzy[kasa_id].kolejka_klientow[sklep->kasjerzy[kasa_id].head];
-    sklep->kasjerzy[kasa_id].head = (sklep->kasjerzy[kasa_id].head + 1) % MAX_KLIENTOW;
+    if (sklep->klienci[klient_index].klient_id == 0) {
+        // Invalid client, skip
+        sklep->kasjerzy[kasa_id].head = (sklep->kasjerzy[kasa_id].head + 1) % MAX_KLIENTOW;
+        return pobierz_id_klienta_z_kolejki(sklep, kasa_id);
+    }
 
+    sklep->kasjerzy[kasa_id].head = (sklep->kasjerzy[kasa_id].head + 1) % MAX_KLIENTOW;
     return klient_index;
 }
 
@@ -161,7 +165,7 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
             break;
         }
         
-        if (sklep->kasjerzy[kasa_id].ilosc_klientow > 0) {
+        if (!kolejka_pusta) {
             int klient_index = pobierz_id_klienta_z_kolejki(sklep, kasa_id);
             if (klient_index != -1) {
                 float suma = 0;
@@ -172,7 +176,11 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
                         suma += produkt->ilosc * produkt->cena;
                 
                         // Aktualizacja statystyk sprzedaży
-                        sklep->kasjerzy[kasa_id].ilosc_sprzedanych[produkt->id] += produkt->ilosc;
+                        if (produkt->id >= 0 && produkt->id < MAX_PRODUKTOW) {
+                            sklep->kasjerzy[kasa_id].ilosc_sprzedanych[produkt->id] += produkt->ilosc;
+                        } else {
+                            printf("Kasa %d: Niepoprawny ID produktu %d, pomijam...\n", kasa_id + 1, produkt->id);
+                        }
                     }
                 }
                 sleep(3);  // Symulacja obsługi klienta
@@ -180,11 +188,13 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
                        kasa_id + 1, sklep->klienci[klient_index].klient_id, suma);
 
                 sklep->kasjerzy[kasa_id].suma += suma;
+            
                 sklep->kasjerzy[kasa_id].ilosc_klientow--;
 
                 message_buf sbuf = {.mtype = sklep->klienci[klient_index].klient_id};
                 strcpy(sbuf.mtext, klient_rozliczony);
                 msgsnd(msqid, &sbuf, sizeof(sbuf.mtext), 0);
+                sklep->klienci[klient_index].klient_id = 0;
             }
         }
         sem_post(sem_id, 13 + kasa_id);

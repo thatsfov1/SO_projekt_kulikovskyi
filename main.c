@@ -19,11 +19,9 @@ Kosz *kosz;
 
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną i usuwa semafory oraz kolejki komunikatów
 void cleanup(int signum) {
-    
-
+    while(wait(NULL) > 0);
     sleep(1);
     printf(RED "\nZamykanie sklepu...\n" RESET);
-   
 
     // Czyszczenie zasobów
     shmdt(sklep);
@@ -93,18 +91,8 @@ int main() {
     // Inicjalizacja struktury sklepu
     sklep->ilosc_klientow = 0;
     sklep->inwentaryzacja=0;
-    sklep->sprawdzenie = 42;
     init_produkty(sklep);
-    // for (int i = 0; i < MAX_KASJEROW; i++) {
-    //     memset(&sklep->kasjerzy[i], 0, sizeof(Kasjer));
-    //     memset(sklep->kasjerzy[i].ilosc_sprzedanych, 0, sizeof(int) * MAX_PRODUKTOW);
-    //     sklep->kasjerzy[i].head = 0;
-    //     sklep->kasjerzy[i].tail = 0;
-    //     sklep->kasjerzy[i].ilosc_klientow = 0;
-    //     sklep->kasjerzy[i].suma = 0;
-    // }
     init_kosz(kosz, sklep);
-    //memset(&sklep->statystyki_piekarza, 0, sizeof(StatystykiPiekarza));
     sklep->sklep_zamkniety = 0;
     
     //printf("Nacisnij 'e' dla wysłania sygnału o ewakuację.\n");
@@ -129,11 +117,11 @@ int main() {
     }
 
     // Główna pętla oczekiwania na zakończenie procesów
-    while (1) {
-        if (wait(NULL) < 0 && errno == ECHILD) {
-            break;
-        }
-    }
+    // while (1) {
+    //     if (wait(NULL) < 0 && errno == ECHILD) {
+    //         break;
+    //     }
+    // }
 
     cleanup(0);
 
