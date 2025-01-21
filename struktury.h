@@ -76,6 +76,7 @@ typedef struct
     Kasjer kasjerzy[MAX_KASJEROW];
     int ilosc_klientow;
     int inwentaryzacja;
+    int sprawdzenie;
     StatystykiPiekarza statystyki_piekarza;
     int sklep_zamkniety;
 } Sklep;

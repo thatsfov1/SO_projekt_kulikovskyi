@@ -19,11 +19,7 @@ Kosz *kosz;
 
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną i usuwa semafory oraz kolejki komunikatów
 void cleanup(int signum) {
-    while (1) {
-        if (wait(NULL) < 0 && errno == ECHILD) {
-            break;
-        }
-    }
+    
     printf(RED "\nZamykanie sklepu...\n" RESET);
 
     // Wysłanie sygnału do wszystkich procesów w grupie
@@ -37,13 +33,6 @@ void cleanup(int signum) {
     shmctl(shm_id, IPC_RMID, NULL);
     shmctl(kosz_id, IPC_RMID, NULL);
     semctl(sem_id, 0, IPC_RMID);
-
-    // Usunięcie kolejki komunikatów kierownika
-    key_t key = ftok("/tmp", msq_main);
-    int msqid = msgget(key, 0666);
-    if (msqid != -1) {
-        msgctl(msqid, IPC_RMID, NULL);
-    }
 
     // Usunięcie kolejek komunikatów kasjerów
     for (int i = 0; i < MAX_KASJEROW; i++) {
@@ -92,23 +81,25 @@ int main() {
     }
 
     // Tworzenie semaforów
-    sem_id = semget(SEM_KEY, 17, IPC_CREAT | 0666);
+    sem_id = semget(SEM_KEY, 16, IPC_CREAT | 0666);
     if (sem_id == -1) {
         perror("semget");
         exit(1);
     }
 
     // Inicjalizacja semaforów
-    for (int i = 0; i < 17; i++) {
+    for (int i = 0; i < 16; i++) {
         semctl(sem_id, i, SETVAL, 1);
     }
 
     // Inicjalizacja struktury sklepu
     sklep->ilosc_klientow = 0;
-    sklep->inwentaryzacja = 0;
+    sklep->inwentaryzacja=0;
+    sklep->sprawdzenie = 42;
     init_produkty(sklep);
     init_kosz(kosz, sklep);
     sklep->sklep_zamkniety = 0;
+    
     //printf("Nacisnij 'e' dla wysłania sygnału o ewakuację.\n");
 
     // Uruchamianie procesów
@@ -130,44 +121,12 @@ int main() {
         execl("./klient", "./klient", NULL);
     }
 
-    key_t main_key = ftok("/tmp", msq_main);
-    int main_msqid = msgget(main_key, 0666 | IPC_CREAT);
-    if (main_msqid == -1) {
-        perror("msgget main");
-        exit(1);
-    }
-    message_buf rbuf;
-    // Oczekiwanie na komunikat o zamknięciu sklepu
-    
-    // if (msgrcv(kierownik_msqid, &rbuf, sizeof(rbuf.mtext), 0, 0) != -1) {
-    //     if (strcmp(rbuf.mtext, close_store_message) == 0) {
-    //         printf(YELLOW "Main: Otrzymałem komunikat o zamknięciu sklepu, czekam na zakończenie procesów.\n" RESET);
-
-    //         // Czekanie na zakończenie wszystkich procesów potomnych
-    //         while (1) {
-    //             if (wait(NULL) < 0 && errno == ECHILD) {
-    //                 break;
-    //             }
-    //         }
-
-    //         printf(GREEN "Main: Wszystkie procesy zakończone, kończę pracę.\n" RESET);
-    //         cleanup(0);
-    //     }
-    // }
-
-    if (msgrcv(main_msqid, &rbuf, sizeof(rbuf.mtext), 0, 0) != -1) {
-        if (strcmp(rbuf.mtext, ready_to_close) == 0) {
-            printf(GREEN "Main: Wszystkie procesy gotowe do zamknięcia, kończę pracę.\n" RESET);
-            cleanup(0);
+    // Główna pętla oczekiwania na zakończenie procesów
+    while (1) {
+        if (wait(NULL) < 0 && errno == ECHILD) {
+            break;
         }
     }
-
-    // Główna pętla oczekiwania na zakończenie procesów
-    // while (1) {
-    //     if (wait(NULL) < 0 && errno == ECHILD) {
-    //         break;
-    //     }
-    // }
 
     cleanup(0);
 

@@ -97,27 +97,6 @@ void send_close_message()
     printf(BLUE "Kierownik: Wkrótce sklep zamyka się, wszyscy klienci stojący w kolejce do kas będą obsłużeni \n" RESET);
 }
 
-// Wysłanie komunikatu do main o gotowości do zamknięcia
-void send_close_message_to_main()
-{
-    key_t main_key = ftok("/tmp", msq_main);
-    int main_msqid = msgget(main_key, 0666 | IPC_CREAT);
-    if (main_msqid == -1)
-    {
-        perror("msgget main");
-        exit(1);
-    }
-
-    message_buf sbuf;
-    sbuf.mtype = 1;
-    strcpy(sbuf.mtext, ready_to_close);
-    if (msgsnd(main_msqid, &sbuf, sizeof(sbuf.mtext), 0) == -1)
-    {
-        perror("msgsnd main");
-        exit(1);
-    }
-}
-
 // Oczekiwanie na potwierdzenia od wszystkich procesów
 void wait_for_acknowledgments()
 {
@@ -137,14 +116,17 @@ void wait_for_acknowledgments()
 
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną i wysyła potwierdzenia
 void cleanup_handler(int signum){
+    printf("Debug: Process %d: inwentaryzacja=%d, signum=%d\n", 
+           getpid(), sklep->inwentaryzacja, signum);
+
     if (sklep->inwentaryzacja && signum != SIGUSR1){
+        printf(BLUE "blablabla \n");
         print_inventory();
     }
 
     if (signum == SIGUSR1){
         print_kosz();
     }
-    send_close_message_to_main();
 
     shmdt(sklep);
     shmdt(kosz);
@@ -212,9 +194,15 @@ int main(){
     if (czy_bedzie_inwentaryzacja == 1)
     {
         printf(BLUE "Kierownik: w dniu dzisiejszym przeprowadzimy inwentaryzację.\n" RESET);
-        sem_wait(sem_id, 12);
-        sklep->inwentaryzacja = 1;
-        sem_post(sem_id, 12);
+            sem_wait(sem_id, 12);
+            sklep->inwentaryzacja = 1;
+            printf("Debug: Ustawiono inwentaryzację=%d\n", sklep->inwentaryzacja);
+            sem_post(sem_id, 12);
+
+            sleep(1);
+            sem_wait(sem_id, 12);
+            printf("Debug: Po 1s inwentaryzacja=%d\n", sklep->inwentaryzacja);
+            sem_post(sem_id, 12);
     }
     else
     {

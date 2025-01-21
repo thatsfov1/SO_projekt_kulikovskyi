@@ -2,7 +2,6 @@
 #include "struktury.h"
 #include <string.h>
 
-
 void sem_wait(int sem_id, int sem_num) {
     struct sembuf sem_op;
     sem_op.sem_num = sem_num;
@@ -49,7 +48,7 @@ void init_kosz(Kosz *kosz, Sklep *sklep) {
     memset(kosz, 0, sizeof(Kosz));
     for (int i = 0; i < MAX_PRODUKTOW; i++) {
         kosz->produkty[i].id = i;
-        strcpy(kosz->produkty[i].nazwa, sklep->podajniki[i].produkt.nazwa); // Copy product names from Sklep
+        strcpy(kosz->produkty[i].nazwa, sklep->podajniki[i].produkt.nazwa);
         kosz->produkty[i].ilosc = 0;
         kosz->produkty[i].cena = sklep->podajniki[i].produkt.cena;
     }
