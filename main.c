@@ -19,16 +19,15 @@ Kosz *kosz;
 
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną i usuwa semafory oraz kolejki komunikatów
 void cleanup(int signum) {
+
     while(wait(NULL) > 0);
     sleep(1);
     printf(RED "\nZamykanie sklepu...\n" RESET);
 
     // Czyszczenie zasobów
     shmdt(sklep);
-    shmdt(kosz);
 
     shmctl(shm_id, IPC_RMID, NULL);
-    shmctl(kosz_id, IPC_RMID, NULL);
     semctl(sem_id, 0, IPC_RMID);
 
     // Usunięcie kolejek komunikatów kasjerów
@@ -51,37 +50,10 @@ int main() {
     setup_signal_handlers(cleanup, evacuation_handler);
 
     // Tworzenie pamięci współdzielonej dla sklepu
-    shm_id = shmget(SHM_KEY, sizeof(Sklep), IPC_CREAT | 0666);
-    if (shm_id < 0) {
-        perror("shmget");
-        exit(1);
-    }
-
-    sklep = (Sklep *)shmat(shm_id, NULL, 0);
-    if (sklep == (Sklep *)-1) {
-        perror("shmat");
-        exit(1);
-    }
-
-    // Tworzenie pamięci współdzielonej dla kosza
-    kosz_id = shmget(KOSZ_KEY, sizeof(Kosz), IPC_CREAT | 0666);
-    if (kosz_id < 0) {
-        perror("shmget kosz");
-        exit(1);
-    }
-
-    kosz = (Kosz *)shmat(kosz_id, NULL, 0);
-    if (kosz == (Kosz *)-1) {
-        perror("shmat kosz");
-        exit(1);
-    }
+    initialize_shm_sklep(&shm_id, &sklep, SKLEP_KEY);
 
     // Tworzenie semaforów
-    sem_id = semget(SEM_KEY, 17, IPC_CREAT | 0666);
-    if (sem_id == -1) {
-        perror("semget");
-        exit(1);
-    }
+    initialize_semaphores(&sem_id, SEM_KEY, 17);
 
     // Inicjalizacja semaforów
     for (int i = 0; i < 17; i++) {
@@ -92,10 +64,7 @@ int main() {
     sklep->ilosc_klientow = 0;
     sklep->inwentaryzacja=0;
     init_produkty(sklep);
-    init_kosz(kosz, sklep);
     sklep->sklep_zamkniety = 0;
-    
-    //printf("Nacisnij 'e' dla wysłania sygnału o ewakuację.\n");
 
     // Uruchamianie procesów
     pid_t kierownik_pid, piekarz_pid, kasjer_pid, klient_pid;
@@ -115,13 +84,6 @@ int main() {
     if ((klient_pid = fork()) == 0) {
         execl("./klient", "./klient", NULL);
     }
-
-    // Główna pętla oczekiwania na zakończenie procesów
-    // while (1) {
-    //     if (wait(NULL) < 0 && errno == ECHILD) {
-    //         break;
-    //     }
-    // }
 
     cleanup(0);
 

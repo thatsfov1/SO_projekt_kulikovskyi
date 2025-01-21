@@ -15,11 +15,8 @@
 int shm_id;
 int sem_id;
 Sklep *sklep;
-Kosz *kosz;
-int kosz_id;
 int klient_index;
 int msqid_klient;
-int kierownik_msqid;
 
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną
 void cleanup_handler()
@@ -37,15 +34,15 @@ void evacuation_handler(int signum)
     {
         int produkt_id = sklep->klienci[klient_index].lista_zakupow[i].id;
         sem_wait(sem_id, produkt_id);
-        kosz->produkty[produkt_id].ilosc += sklep->klienci[klient_index].lista_zakupow[i].ilosc;
-        strcpy(kosz->produkty[produkt_id].nazwa, sklep->klienci[klient_index].lista_zakupow[i].nazwa);
+        sklep->kosz.produkty[produkt_id].ilosc += sklep->klienci[klient_index].lista_zakupow[i].ilosc;
+        strcpy(sklep->kosz.produkty[produkt_id].nazwa, sklep->klienci[klient_index].lista_zakupow[i].nazwa);
         sem_post(sem_id, produkt_id);
     }
 
     // Zmniejszenie liczby klientów w sklepie
-    sem_wait(sem_id, 12);
+    sem_wait(sem_id, SEM_SKLEP);
     sklep->ilosc_klientow--;
-    sem_post(sem_id, 12);
+    sem_post(sem_id, SEM_SKLEP);
 
     cleanup_handler();
 }
@@ -58,14 +55,14 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
 
     // Czekanie na wejście do sklepu
     while (1) {
-        sem_wait(sem_id, 12);
+        sem_wait(sem_id, SEM_SKLEP);
         if (sklep->ilosc_klientow < MAX_KLIENTOW) {
             klient_index = sklep->ilosc_klientow;
             sklep->ilosc_klientow++;
-            sem_post(sem_id, 12);
+            sem_post(sem_id, SEM_SKLEP);
             break;
         } else {
-            sem_post(sem_id, 12);
+            sem_post(sem_id, SEM_SKLEP);
             printf("Klient %d: Sklep jest pełny, czekam przed wejściem...\n", klient_id);
             sleep(1);
         }
@@ -76,9 +73,9 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     int liczba_produktow = 0;
 
     // Czyszczenie struktury klienta
-    sem_wait(sem_id, 12);
+    sem_wait(sem_id, SEM_SKLEP);
     memset(&sklep->klienci[klient_index], 0, sizeof(Klient));
-    sem_post(sem_id, 12);
+    sem_post(sem_id, SEM_SKLEP);
 
     losuj_liste_zakupow(sklep, lista_zakupow, &liczba_produktow);
 
@@ -110,13 +107,13 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     }
 
     // Zapisanie zaktualizowanej listy do struktury klienta
-    sem_wait(sem_id, 12);
+    sem_wait(sem_id, SEM_SKLEP);
     sklep->klienci[klient_index].klient_id = klient_id;
     memcpy(sklep->klienci[klient_index].lista_zakupow, lista_zakupow, sizeof(lista_zakupow));
     sklep->klienci[klient_index].ilosc_zakupow = liczba_produktow;
-    sem_post(sem_id, 12);
+    sem_post(sem_id, SEM_SKLEP);
 
-    // // Sprawdzenie, czy sklep jest zamknięty
+    // Sprawdzenie, czy sklep jest zamknięty
     if (sklep->sklep_zamkniety) {
             printf("Klient %d: Sklep zamknięty, zwracam produkty do podajników i wychodzę\n", klient_id);
             for (int i = 0; i < liczba_produktow; i++) {
@@ -125,10 +122,10 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
                 sklep->podajniki[produkt_id].produkt.ilosc += lista_zakupow[i].ilosc;
                 sem_post(sem_id, produkt_id);
             }
-            sem_wait(sem_id, 12);
+            sem_wait(sem_id, SEM_SKLEP);
             sklep->klienci[klient_index].klient_id = 0;
             sklep->ilosc_klientow--;
-            sem_post(sem_id, 12);
+            sem_post(sem_id, SEM_SKLEP);
             cleanup_handler();
         }
 
@@ -151,11 +148,8 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
 
     // Otwieranie kolejki komunikatów
     key_t key = ftok("/tmp", kasa_id + 1);
-    int msqid_kasy = msgget(key, 0666 | IPC_CREAT);
-    if (msqid_kasy == -1) {
-        perror("msgget");
-        exit(1);
-    }
+    int msqid_kasy;
+    initialize_message_queue(&msqid_kasy, key);
     
     // Czekanie na komunikat od kasjera
     message_buf rbuf;
@@ -166,38 +160,16 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     }
     
     // Klient opuszcza sklep
-    sem_wait(sem_id, 12);
+    sem_wait(sem_id, SEM_SKLEP);
     sklep->ilosc_klientow--;
-    sem_post(sem_id, 12);
+    sem_post(sem_id, SEM_SKLEP);
     printf("Klient %d: Opuszczam sklep\n", klient_id);
 }
 
 int main() {
     setup_signal_handlers(cleanup_handler, evacuation_handler);
 
-    shm_id = shmget(SHM_KEY, sizeof(Sklep), 0666);
-    if (shm_id < 0) {
-        perror("shmget");
-        exit(1);
-    }
-
-    sklep = (Sklep *)shmat(shm_id, NULL, 0);
-    if (sklep == (Sklep *)-1) {
-        perror("shmat");
-        exit(1);
-    }
-
-    kosz_id = shmget(KOSZ_KEY, sizeof(Kosz), IPC_CREAT | 0666);
-    if (kosz_id < 0) {
-        perror("shmget kosz");
-        exit(1);
-    }
-
-    kosz = (Kosz *)shmat(kosz_id, NULL, 0);
-    if (kosz == (Kosz *)-1) {
-        perror("shmat kosz");
-        exit(1);
-    }
+    initialize_shm_sklep(&shm_id, &sklep, SKLEP_KEY);
 
     sem_id = semget(SEM_KEY, 0, 0666);
     if (sem_id == -1) {
@@ -206,18 +178,8 @@ int main() {
     }
 
     key_t key = ftok("/tmp", msq_klient);
-    msqid_klient = msgget(key, 0666 | IPC_CREAT);
-    if (msqid_klient == -1) {
-        perror("msgget");
-        exit(1);
-    }
+    initialize_message_queue(&msqid_klient, key);
 
-    key_t kierownik_key = ftok("/tmp", msq_kierownik);
-    kierownik_msqid = msgget(kierownik_key, 0666 | IPC_CREAT);
-    if (kierownik_msqid == -1) {
-        perror("msgget");
-        exit(1);
-    }
 
     while (1) {
         message_buf rbuf;
@@ -229,11 +191,11 @@ int main() {
         }
         if (!sklep->sklep_zamkniety) {
             pid_t pid = fork();
-            if (pid == 0) { // Proces potomny
+            if (pid == 0) { 
                 srand(time(NULL) ^ (getpid() << 16));
                 zakupy(sklep, sem_id, getpid(), msqid_klient);
                 exit(0);
-            } else if (pid > 0) { // Proces macierzysty
+            } else if (pid > 0) { 
                 sleep(1);
             } else {
                 perror("fork");
@@ -247,13 +209,7 @@ int main() {
     while ((pid = waitpid(-1, NULL, WNOHANG)) > 0);
     
     // Wysłanie potwierdzenia do kierownika
-    message_buf sbuf;
-    sbuf.mtype = 1;
-    strcpy(sbuf.mtext, acknowledgment_to_kierownik);
-    if (msgsnd(kierownik_msqid, &sbuf, sizeof(sbuf.mtext), 0) == -1) {
-        perror("msgsnd klienci do kierownika");
-        exit(1);
-    }
+    send_acknowledgment_to_kierownik();
 
     cleanup_handler();
     return 0;

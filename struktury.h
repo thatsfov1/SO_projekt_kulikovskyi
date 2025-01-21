@@ -7,10 +7,13 @@
 #define MAX_KLIENTOW 15
 #define MAX_KASJEROW 3
 #define MAX_PRODUKTOW_W_PODAJNIKU 15
-#define SHM_KEY 1234
+#define SKLEP_KEY 1234
 #define SEM_KEY 5678
 #define KOSZ_KEY 1111
 #define CZAS_PRACY 15
+#define msq_kasa1 1
+#define msq_kasa2 2
+#define msq_kasa3 3
 #define msq_klient 4
 #define msq_kierownik 5
 #define msq_piekarz 6
@@ -19,6 +22,7 @@
 #define acknowledgment_to_kierownik "ACK"
 #define klient_rozliczony "OK"
 #define ready_to_close "READY_TO_CLOSE"
+#define SEM_SKLEP 12
 #define SEM_CLOSE 16
 
 // Kolory
@@ -71,20 +75,20 @@ typedef struct
 
 typedef struct
 {
+    Produkt produkty[MAX_PRODUKTOW];
+    int ilosc_produktow;
+} Kosz;
+
+typedef struct
+{
     Podajnik podajniki[MAX_PRODUKTOW];
     Klient klienci[MAX_KLIENTOW];
     Kasjer kasjerzy[MAX_KASJEROW];
     int ilosc_klientow;
     int inwentaryzacja;
-    int sprawdzenie;
+    Kosz kosz;
     StatystykiPiekarza statystyki_piekarza;
     int sklep_zamkniety;
 } Sklep;
-
-typedef struct
-{
-    Produkt produkty[MAX_PRODUKTOW];
-    int ilosc_produktow;
-} Kosz;
 
 #endif

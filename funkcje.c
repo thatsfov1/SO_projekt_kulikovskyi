@@ -1,6 +1,10 @@
 #include "funkcje.h"
 #include "struktury.h"
 #include <string.h>
+#include <sys/shm.h>
+#include <sys/sem.h>
+#include <sys/msg.h>
+#include <sys/ipc.h>
 
 void sem_wait(int sem_id, int sem_num) {
     struct sembuf sem_op;
@@ -24,6 +28,36 @@ void sem_post(int sem_id, int sem_num) {
     }
 }
 
+void initialize_shm_sklep(int *shm_id, Sklep **sklep, int key) {
+    *shm_id = shmget(key, sizeof(Sklep), IPC_CREAT | 0666);
+    if (*shm_id < 0) {
+        perror("shmget");
+        exit(1);
+    }
+
+    *sklep = (Sklep *)shmat(*shm_id, NULL, 0);
+    if (*sklep == (Sklep *)-1) {
+        perror("shmat");
+        exit(1);
+    }
+}
+
+void initialize_semaphores(int *sem_id, int key, int num_semaphores) {
+    *sem_id = semget(key, num_semaphores, IPC_CREAT | 0666);
+    if (*sem_id == -1) {
+        perror("semget");
+        exit(1);
+    }
+}
+
+void initialize_message_queue(int *msqid, int key) {
+    *msqid = msgget(key, 0666 | IPC_CREAT);
+    if (*msqid == -1) {
+        perror("msgget");
+        exit(1);
+    }
+}
+
 void init_produkty(Sklep *sklep) {
     memset(sklep, 0, sizeof(Sklep));
     char *nazwy[MAX_PRODUKTOW] = {
@@ -42,16 +76,26 @@ void init_produkty(Sklep *sklep) {
         sklep->podajniki[i].produkt.cena = ceny[i];
         sklep->podajniki[i].produkt.ilosc = 0;
         sklep->podajniki[i].produkt.id = i;
+        sklep->kosz.produkty[i].id = i;
+        strcpy(sklep->kosz.produkty[i].nazwa, sklep->podajniki[i].produkt.nazwa);
+        sklep->kosz.produkty[i].ilosc = 0;
+        sklep->kosz.produkty[i].cena = sklep->podajniki[i].produkt.cena;
     }
 }
 
-void init_kosz(Kosz *kosz, Sklep *sklep) {
-    memset(kosz, 0, sizeof(Kosz));
-    for (int i = 0; i < MAX_PRODUKTOW; i++) {
-        kosz->produkty[i].id = i;
-        strcpy(kosz->produkty[i].nazwa, sklep->podajniki[i].produkt.nazwa);
-        kosz->produkty[i].ilosc = 0;
-        kosz->produkty[i].cena = sklep->podajniki[i].produkt.cena;
+void send_acknowledgment_to_kierownik() {
+    key_t kierownik_key = ftok("/tmp", msq_kierownik);
+    int kierownik_msqid = msgget(kierownik_key, 0666 | IPC_CREAT);
+    if (kierownik_msqid == -1) {
+        perror("msgget kierownik");
+        exit(1);
+    }
+    message_buf sbuf;
+    sbuf.mtype = 1;
+    strcpy(sbuf.mtext, acknowledgment_to_kierownik);
+    if (msgsnd(kierownik_msqid, &sbuf, sizeof(sbuf.mtext), 0) == -1) {
+        perror("msgsnd do kierownika");
+        exit(1);
     }
 }
 

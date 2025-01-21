@@ -39,25 +39,6 @@ void print_inventory()
     }
     printf("\n");
 }
-
-void send_acknowledgment()
-{
-    key_t kierownik_key = ftok("/tmp", msq_kierownik);
-    int kierownik_msqid = msgget(kierownik_key, 0666 | IPC_CREAT);
-    if (kierownik_msqid == -1)
-    {
-        perror("msgget kierownik");
-        exit(1);
-    }
-    message_buf sbuf;
-    sbuf.mtype = 1;
-    strcpy(sbuf.mtext, acknowledgment_to_kierownik);
-    if (msgsnd(kierownik_msqid, &sbuf, sizeof(sbuf.mtext), 0) == -1)
-    {
-        perror("msgsnd kasy do kierownika");
-        exit(1);
-    }
-}
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną i wysyła potwierdzenia
 void cleanup_handler(int signum)
 {
@@ -65,15 +46,6 @@ void cleanup_handler(int signum)
     {
         print_inventory();
     }
-    // for (int i = 0; i < MAX_KASJEROW; i++)
-    // {
-    //     key_t key = ftok("/tmp", i + 1);
-    //     int msqid = msgget(key, 0666);
-    //     if (msqid != -1)
-    //     {
-    //         msgctl(msqid, IPC_RMID, NULL);
-    //     }
-    // }
     exit(0);
 }
 
@@ -89,9 +61,9 @@ void monitoruj_kasy(Sklep *sklep, int sem_id)
 {
     while (!sklep->sklep_zamkniety)
     {
-        sem_wait(sem_id, 12);
+        sem_wait(sem_id, SEM_SKLEP);
         int ilosc_klientow = sklep->ilosc_klientow;
-        sem_post(sem_id, 12);
+        sem_post(sem_id, SEM_SKLEP);
 
         // Zarządzanie kasami
         if (ilosc_klientow <= 10)
@@ -119,17 +91,14 @@ void monitoruj_kasy(Sklep *sklep, int sem_id)
     }
 }
 
-// Pobranie ID klienta z kolejki
 int pobierz_id_klienta_z_kolejki(Sklep *sklep, int kasa_id)
 {
     if (sklep->kasjerzy[kasa_id].head == sklep->kasjerzy[kasa_id].tail) {
-        // Kolejka jest pusta
         return -1;
     }
     
     int klient_index = sklep->kasjerzy[kasa_id].kolejka_klientow[sklep->kasjerzy[kasa_id].head];
     if (sklep->klienci[klient_index].klient_id == 0) {
-        // Invalid client, skip
         sklep->kasjerzy[kasa_id].head = (sklep->kasjerzy[kasa_id].head + 1) % MAX_KLIENTOW;
         return pobierz_id_klienta_z_kolejki(sklep, kasa_id);
     }
@@ -141,11 +110,9 @@ int pobierz_id_klienta_z_kolejki(Sklep *sklep, int kasa_id)
 // Obsługa klienta w kasie
 void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
     key_t key = ftok("/tmp", kasa_id + 1);
-    int msqid = msgget(key, 0666 | IPC_CREAT);
-    if (msqid == -1) {
-        perror("msgget");
-        exit(1);
-    }
+    int msqid;
+    initialize_message_queue(&msqid, key);
+
     message_buf rbuf;
     int kasa_zamknieta = 0;
     while (!kasa_zamknieta) {
@@ -203,25 +170,16 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
     }
 
     // Wysłanie potwierdzenia do kierownika
-    send_acknowledgment();
+    send_acknowledgment_to_kierownik();
 }
 
 int main() {
     setup_signal_handlers(cleanup_handler, evacuation_handler);
 
-    int shm_id = shmget(SHM_KEY, sizeof(Sklep), 0666);
-    if (shm_id < 0) {
-        perror("shmget");
-        exit(1);
-    }
+    int shm_id;
+    initialize_shm_sklep(&shm_id, &sklep, SKLEP_KEY);
 
-    sklep = (Sklep *)shmat(shm_id, NULL, 0);
-    if (sklep == (Sklep *)-1) {
-        perror("shmat");
-        exit(1);
-    }
-
-    sem_id = semget(SEM_KEY, 0, 0666);
+    int sem_id = semget(SEM_KEY, 0, 0666);
     if (sem_id == -1) {
         perror("semget");
         exit(1);

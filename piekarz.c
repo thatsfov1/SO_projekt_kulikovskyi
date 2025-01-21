@@ -10,35 +10,9 @@
 #include <string.h>
 #include "funkcje.h"
 
+int shm_id;
 Sklep *sklep;
 int msqid;
-
-// Inicjalizacja kolejki komunikatów do komunikacji z kierownikiem
-void initialize_message_queue()
-{
-    key_t key = ftok("/tmp", msq_piekarz);
-    msqid = msgget(key, 0666 | IPC_CREAT);
-    if (msqid == -1)
-    {
-        perror("msgget");
-        exit(1);
-    }
-}
-
-// Wysłanie potwierdzenia do kierownika, że piekarz zakończył swoje zadania
-void send_acknowledgment()
-{
-    key_t kierownik_key = ftok("/tmp", msq_kierownik);
-    int kierownik_mdqid = msgget(kierownik_key, 0666 | IPC_CREAT);
-    message_buf sbuf;
-    sbuf.mtype = 1;
-    strcpy(sbuf.mtext, acknowledgment_to_kierownik);
-    if (msgsnd(kierownik_mdqid, &sbuf, sizeof(sbuf.mtext), 0) == -1)
-    {
-        perror("msgsnd piekarz do kierownika");
-        exit(1);
-    }
-}
 
 // Wysłanie danych inwentaryzacyjnych do kierownika, jeśli inwentaryzacja jest włączona
 void print_inventory()
@@ -80,7 +54,7 @@ void wypiekaj_produkty(Sklep *sklep, int sem_id)
             if (strcmp(rbuf.mtext, close_store_message) == 0)
             {
                 printf("Piekarz: Otrzymałem komunikat o zamknięciu sklepu, kończę pracę.\n");
-                send_acknowledgment();
+                send_acknowledgment_to_kierownik();
                 break;
             }
         }
@@ -121,28 +95,17 @@ int main()
 {
     setup_signal_handlers(cleanup_handler, evacuation_handler);
 
-    int shm_id = shmget(SHM_KEY, sizeof(Sklep), 0666);
-    if (shm_id < 0)
-    {
-        perror("shmget");
-        exit(1);
-    }
-
-    sklep = (Sklep *)shmat(shm_id, NULL, 0);
-    if (sklep == (Sklep *)-1)
-    {
-        perror("shmat");
-        exit(1);
-    }
+    initialize_shm_sklep(&shm_id, &sklep, SKLEP_KEY);
 
     int sem_id = semget(SEM_KEY, 0, 0666);
-    if (sem_id == -1)
-    {
+    if (sem_id == -1) {
         perror("semget");
         exit(1);
     }
 
-    initialize_message_queue();
+    key_t key = ftok("/tmp", msq_piekarz);
+    initialize_message_queue(&msqid, key);
+    
     wypiekaj_produkty(sklep, sem_id);
     cleanup_handler(0);
     return 0;

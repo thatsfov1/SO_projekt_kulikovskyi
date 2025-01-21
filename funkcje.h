@@ -12,6 +12,10 @@
 void sem_wait(int sem_id, int sem_num);
 void sem_post(int sem_id, int sem_num);
 void init_produkty(Sklep *sklep);
+void send_acknowledgment_to_kierownik();
+void initialize_shm_sklep(int *shm_id, Sklep **sklep, int key);
+void initialize_semaphores(int *sem_id, int key, int num_semaphores);
+void initialize_message_queue(int *msqid, int key);
 void init_kosz(Kosz *kosz, Sklep *sklep);
 void drukuj_produkt(const char* nazwa, int ilosc);
 int znajdz_kase_z_najmniejsza_kolejka(Sklep *sklep, int sem_id);
