@@ -38,22 +38,60 @@ void cleanup_message_queue()
     }
 }
 
-// Wydrukowanie stanu inwentaryzacji
-void print_inventory()
-{
+void drukuj_stan_podajnikow() {
     printf("Kierownik: Na podajnikach zostało: ");
-    for (int i = 0; i < MAX_PRODUKTOW; i++)
-    {
-        if (sklep->podajniki[i].produkt.ilosc > 0)
-        {
-            printf("%s %d szt. ", sklep->podajniki[i].produkt.nazwa, sklep->podajniki[i].produkt.ilosc);
+    for (int i = 0; i < MAX_PRODUKTOW; i++) {
+        if (sklep->podajniki[i].produkt.ilosc > 0) {
+            drukuj_produkt(sklep->podajniki[i].produkt.nazwa, 
+                          sklep->podajniki[i].produkt.ilosc);
         }
     }
     printf("\n");
 }
 
+void drukuj_statystyki_piekarza() {
+    printf("Piekarz: Wyprodukował ");
+    for (int i = 0; i < MAX_PRODUKTOW; i++) {
+        drukuj_produkt(sklep->podajniki[i].produkt.nazwa, 
+                      sklep->statystyki_piekarza.wyprodukowane[i]);
+    }
+    printf("\n");
+}
+
+void drukuj_sprzedaz_kasjera(int kasjer_id) {
+    printf("Kasa %d: ", kasjer_id + 1);
+    
+    int sprzedal_cos = 0;
+    for (int j = 0; j < MAX_PRODUKTOW; j++) {
+        int ilosc = sklep->kasjerzy[kasjer_id].ilosc_sprzedanych[j];
+        if (ilosc > 0) {
+            if (!sprzedal_cos) {
+                printf("Sprzedano: ");
+                sprzedal_cos = 1;
+            }
+            drukuj_produkt(sklep->podajniki[j].produkt.nazwa, ilosc);
+        }
+    }
+    
+    if (!sprzedal_cos) {
+        printf("brak sprzedanych produktów przez kasę");
+    }
+    printf("\n");
+}
+
+// Wydrukowanie stanu inwentaryzacji
+void drukuj_inwentaryzacje()
+{
+    drukuj_stan_podajnikow();
+    drukuj_statystyki_piekarza();
+    
+    for(int i = 0; i < MAX_KASJEROW; i++) {
+        drukuj_sprzedaz_kasjera(i);
+    }
+}
+
 // Wydrukowanie stanu kosza po zamknięciu sklepu
-void print_kosz()
+void drukuj_kosz()
 {
     printf("Kierownik: Stan kosza po zamknięciu sklepu:\n");
     for (int i = 0; i < MAX_PRODUKTOW; i++)
@@ -121,11 +159,11 @@ void cleanup_handler(int signum){
 
     if (sklep->inwentaryzacja && signum != SIGUSR1){
         printf(BLUE "blablabla \n");
-        print_inventory();
+        drukuj_inwentaryzacje();
     }
 
     if (signum == SIGUSR1){
-        print_kosz();
+        drukuj_kosz();
     }
 
     shmdt(sklep);
@@ -190,24 +228,7 @@ int main(){
         exit(1);
     }
 
-    int czy_bedzie_inwentaryzacja = 1;
-    if (czy_bedzie_inwentaryzacja == 1)
-    {
-        printf(BLUE "Kierownik: w dniu dzisiejszym przeprowadzimy inwentaryzację.\n" RESET);
-            sem_wait(sem_id, 12);
-            sklep->inwentaryzacja = 1;
-            printf("Debug: Ustawiono inwentaryzację=%d\n", sklep->inwentaryzacja);
-            sem_post(sem_id, 12);
-
-            sleep(1);
-            sem_wait(sem_id, 12);
-            printf("Debug: Po 1s inwentaryzacja=%d\n", sklep->inwentaryzacja);
-            sem_post(sem_id, 12);
-    }
-    else
-    {
-        printf(BLUE "Kierownik: Dzisiaj nie będziemy przeprowadzać inwentaryzacji.\n" RESET);
-    }
+    
 
     int czy_bedzie_ewakuacja = 2;
     if (czy_bedzie_ewakuacja == 1)
@@ -227,6 +248,19 @@ int main(){
     send_close_message();
 
     wait_for_acknowledgments();
+
+    int czy_bedzie_inwentaryzacja = 1;
+        if (czy_bedzie_inwentaryzacja == 1)
+        {
+            printf(BLUE "Kierownik: w dniu dzisiejszym przeprowadzimy inwentaryzację.\n" RESET);
+                sklep->inwentaryzacja = 1;
+                printf("Debug: Ustawiono inwentaryzację=%d\n", sklep->inwentaryzacja);
+        }
+        else
+        {
+            printf(BLUE "Kierownik: Dzisiaj nie będziemy przeprowadzać inwentaryzacji.\n" RESET);
+        }
+
     cleanup_handler(0);
     return 0;
 }

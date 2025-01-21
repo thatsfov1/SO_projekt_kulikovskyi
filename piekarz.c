@@ -43,7 +43,7 @@ void send_acknowledgment()
     strcpy(sbuf.mtext, acknowledgment_to_kierownik);
     if (msgsnd(kierownik_mdqid, &sbuf, sizeof(sbuf.mtext), 0) == -1)
     {
-        perror("msgsnd");
+        perror("msgsnd piekarz do kierownika");
         exit(1);
     }
 }
@@ -60,11 +60,13 @@ void print_inventory()
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną i wysyła potwierdzenie
 void cleanup_handler(int signum)
 {
+    
     if (sklep->inwentaryzacja && signum != SIGUSR1)
     {
         print_inventory();
     }
     send_acknowledgment();
+    
     shmdt(sklep);
     cleanup_message_queue();
     exit(0);

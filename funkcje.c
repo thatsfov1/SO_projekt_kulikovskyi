@@ -54,6 +54,10 @@ void init_kosz(Kosz *kosz, Sklep *sklep) {
     }
 }
 
+void drukuj_produkt(const char* nazwa, int ilosc) {
+    printf("%s %d szt. ", nazwa, ilosc);
+}
+
 void setup_signal_handlers(void (*cleanup_handler)(int), void (*evacuation_handler)(int)) {
     signal(SIGINT, cleanup_handler);
     signal(SIGTERM, cleanup_handler);

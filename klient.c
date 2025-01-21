@@ -302,7 +302,7 @@ int main() {
     sbuf.mtype = 1;
     strcpy(sbuf.mtext, acknowledgment_to_kierownik);
     if (msgsnd(kierownik_msqid, &sbuf, sizeof(sbuf.mtext), 0) == -1) {
-        perror("msgsnd kierownik");
+        perror("msgsnd klienci do kierownika");
         exit(1);
     }
 

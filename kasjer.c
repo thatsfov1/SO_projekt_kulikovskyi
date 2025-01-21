@@ -54,7 +54,7 @@ void send_acknowledgment()
     strcpy(sbuf.mtext, acknowledgment_to_kierownik);
     if (msgsnd(kierownik_msqid, &sbuf, sizeof(sbuf.mtext), 0) == -1)
     {
-        perror("msgsnd");
+        perror("msgsnd kasy do kierownika");
         exit(1);
     }
 }

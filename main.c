@@ -104,7 +104,7 @@ int main() {
 
     // Uruchamianie procesów
     pid_t kierownik_pid, piekarz_pid, kasjer_pid, klient_pid;
-    
+
     if ((kierownik_pid = fork()) == 0) {
         execl("./kierownik", "./kierownik", NULL);
     }
@@ -120,6 +120,8 @@ int main() {
     if ((klient_pid = fork()) == 0) {
         execl("./klient", "./klient", NULL);
     }
+
+    
 
     // Główna pętla oczekiwania na zakończenie procesów
     while (1) {
