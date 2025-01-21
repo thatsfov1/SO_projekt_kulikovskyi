@@ -29,15 +29,6 @@ void initialize_message_queue()
     }
 }
 
-// Czyszczenie kolejki komunikatów
-void cleanup_message_queue()
-{
-    if (msqid != -1)
-    {
-        msgctl(msqid, IPC_RMID, NULL);
-    }
-}
-
 void drukuj_stan_podajnikow() {
     printf("Kierownik: Na podajnikach zostało: ");
     for (int i = 0; i < MAX_PRODUKTOW; i++) {
@@ -106,6 +97,10 @@ void drukuj_kosz()
 // Wysłanie komunikatu o zamknięciu sklepu do wszystkich procesów
 void send_close_message()
 {
+    sem_wait(sem_id, SEM_CLOSE);
+
+    sklep->sklep_zamkniety = 1;
+
     key_t keys[5] = {
         ftok("/tmp", 1),           // Kasa 1
         ftok("/tmp", 2),           // Kasa 2
@@ -131,6 +126,7 @@ void send_close_message()
             exit(1);
         }
     }
+    sem_post(sem_id, SEM_CLOSE);
 
     printf(BLUE "Kierownik: Wkrótce sklep zamyka się, wszyscy klienci stojący w kolejce do kas będą obsłużeni \n" RESET);
 }
@@ -154,11 +150,8 @@ void wait_for_acknowledgments()
 
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną i wysyła potwierdzenia
 void cleanup_handler(int signum){
-    printf("Debug: Process %d: inwentaryzacja=%d, signum=%d\n", 
-           getpid(), sklep->inwentaryzacja, signum);
 
     if (sklep->inwentaryzacja && signum != SIGUSR1){
-        printf(BLUE "blablabla \n");
         drukuj_inwentaryzacje();
     }
 
@@ -166,15 +159,10 @@ void cleanup_handler(int signum){
         drukuj_kosz();
     }
 
-    shmdt(sklep);
-    shmdt(kosz);
-
     printf(GREEN "Kierownik: Wszyscy klienci opuścili sklep. \n" RESET);
     if (signum == SIGUSR1){
         printf(GREEN "Kierownik: Ewakuacja zakończona. \n" RESET);
     }
-
-    cleanup_message_queue();
     exit(0);
 }
 
@@ -186,7 +174,7 @@ void evacuation_handler(int signum){
         sleep(1);
     }
 
-    cleanup_handler(SIGUSR1);
+    cleanup_handler(signum);
 }
 
 int main(){
@@ -228,9 +216,7 @@ int main(){
         exit(1);
     }
 
-    
-
-    int czy_bedzie_ewakuacja = 2;
+    int czy_bedzie_ewakuacja = 1;
     if (czy_bedzie_ewakuacja == 1)
     {
         sleep(rand() % CZAS_PRACY + 5);
@@ -245,7 +231,9 @@ int main(){
     }
 
     sleep(CZAS_PRACY);
+    
     send_close_message();
+    
 
     wait_for_acknowledgments();
 
@@ -253,13 +241,12 @@ int main(){
         if (czy_bedzie_inwentaryzacja == 1)
         {
             printf(BLUE "Kierownik: w dniu dzisiejszym przeprowadzimy inwentaryzację.\n" RESET);
-                sklep->inwentaryzacja = 1;
-                printf("Debug: Ustawiono inwentaryzację=%d\n", sklep->inwentaryzacja);
+            sklep->inwentaryzacja = 1;
         }
         else
         {
             printf(BLUE "Kierownik: Dzisiaj nie będziemy przeprowadzać inwentaryzacji.\n" RESET);
-        }
+    }
 
     cleanup_handler(0);
     return 0;

@@ -14,7 +14,7 @@
 #define msq_klient 4
 #define msq_kierownik 5
 #define msq_piekarz 6
-#define msq_main 7
+#define LICZBA_KOLEJEK 6
 #define close_store_message "ZAMKNIJ"
 #define acknowledgment_to_kierownik "ACK"
 #define klient_rozliczony "OK"

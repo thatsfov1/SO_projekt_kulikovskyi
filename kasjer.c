@@ -65,17 +65,15 @@ void cleanup_handler(int signum)
     {
         print_inventory();
     }
-
-    shmdt(sklep);
-    for (int i = 0; i < MAX_KASJEROW; i++)
-    {
-        key_t key = ftok("/tmp", i + 1);
-        int msqid = msgget(key, 0666);
-        if (msqid != -1)
-        {
-            msgctl(msqid, IPC_RMID, NULL);
-        }
-    }
+    // for (int i = 0; i < MAX_KASJEROW; i++)
+    // {
+    //     key_t key = ftok("/tmp", i + 1);
+    //     int msqid = msgget(key, 0666);
+    //     if (msqid != -1)
+    //     {
+    //         msgctl(msqid, IPC_RMID, NULL);
+    //     }
+    // }
     exit(0);
 }
 
@@ -145,21 +143,19 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
         exit(1);
     }
     message_buf rbuf;
-
-    while (1) {
+    int kasa_zamknieta = 0;
+    while (!kasa_zamknieta) {
         // Sprawdzenie, czy otrzymano komunikat o zamknięciu sklepu
         if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1) {
             if (strcmp(rbuf.mtext, close_store_message) == 0) {
                 printf("Kasa %d: Otrzymałem komunikat o zamknięciu sklepu.\n", kasa_id + 1);
-                sem_wait(sem_id, 12);
-                sklep->sklep_zamkniety = 1;  // Ustawiamy flagę w pamięci współdzielonej
-                sem_post(sem_id, 12);
+                kasa_zamknieta=1;
             }
         }
         sem_wait(sem_id, 13 + kasa_id);
         int kolejka_pusta = (sklep->kasjerzy[kasa_id].head == sklep->kasjerzy[kasa_id].tail);
         
-        if (sklep->sklep_zamkniety && kolejka_pusta) {
+        if (kasa_zamknieta && kolejka_pusta) {
             sem_post(sem_id, 13 + kasa_id);
             printf("Kasa %d: Zamykam się, sklep zamknięty i brak klientów w kolejce.\n", kasa_id + 1);
             break;
@@ -198,7 +194,6 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
 
     // Wysłanie potwierdzenia do kierownika
     send_acknowledgment();
-    msgctl(msqid, IPC_RMID, NULL);
 }
 
 int main() {
@@ -234,6 +229,5 @@ int main() {
 
     // Monitorowanie liczby klientów i zarządzanie kasami
     monitoruj_kasy(sklep, sem_id);
-    shmdt(sklep);
     return 0;
 }

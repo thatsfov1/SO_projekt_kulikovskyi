@@ -21,22 +21,9 @@ int klient_index;
 int msqid_klient;
 int kierownik_msqid;
 
-void cleanup_message_queues()
-{
-    key_t key = ftok("/tmp", msq_klient);
-    msqid_klient = msgget(key, 0666);
-    if (msqid_klient != -1)
-    {
-        msgctl(msqid_klient, IPC_RMID, NULL);
-    }
-}
-
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną
-void cleanup_handler(int signum)
+void cleanup_handler()
 {
-    cleanup_message_queues();
-    shmdt(sklep);
-    shmdt(kosz);
     exit(0);
 }
 
@@ -51,7 +38,7 @@ void evacuation_handler(int signum)
         int produkt_id = sklep->klienci[klient_index].lista_zakupow[i].id;
         sem_wait(sem_id, produkt_id);
         kosz->produkty[produkt_id].ilosc += sklep->klienci[klient_index].lista_zakupow[i].ilosc;
-        strcpy(kosz->produkty[produkt_id].nazwa, sklep->klienci[klient_index].lista_zakupow[i].nazwa); // Kopiowanie nazwy produktu
+        strcpy(kosz->produkty[produkt_id].nazwa, sklep->klienci[klient_index].lista_zakupow[i].nazwa);
         sem_post(sem_id, produkt_id);
     }
 
@@ -60,42 +47,7 @@ void evacuation_handler(int signum)
     sklep->ilosc_klientow--;
     sem_post(sem_id, 12);
 
-    cleanup_handler(signum);
-}
-
-// Losowanie listy zakupów
-void losuj_liste_zakupow(Sklep *sklep, Produkt lista_zakupow[], int *liczba_produktow)
-{
-    *liczba_produktow = rand() % 3 + 2; // Min. 2, max. 4 produkty
-    for (int i = 0; i < *liczba_produktow; i++)
-    {
-        int produkt_id = rand() % MAX_PRODUKTOW;
-        Produkt produkt = sklep->podajniki[produkt_id].produkt;
-        lista_zakupow[i] = produkt; // Kopiowanie całej struktury wraz z ID
-        lista_zakupow[i].ilosc = rand() % 5 + 1;
-    }
-}
-
-// Znalezienie kasy z najmniejszą kolejką
-int znajdz_kase_z_najmniejsza_kolejka(Sklep *sklep, int sem_id)
-{
-    int min_klienci = MAX_KLIENTOW + 1;
-    int wybrana_kasa = -1;
-    for (int i = 0; i < MAX_KASJEROW; i++)
-    {
-        sem_wait(sem_id, 13 + i);
-        if (sklep->kasjerzy[i].ilosc_klientow != -1)
-        { // Sprawdzenie, czy kasa jest otwarta
-            int liczba_klientow = (sklep->kasjerzy[i].tail + MAX_KLIENTOW - sklep->kasjerzy[i].head) % MAX_KLIENTOW;
-            if (liczba_klientow < min_klienci)
-            {
-                min_klienci = liczba_klientow;
-                wybrana_kasa = i;
-            }
-        }
-        sem_post(sem_id, 13 + i);
-    }
-    return wybrana_kasa;
+    cleanup_handler();
 }
 
 // Zakupy klienta
@@ -114,7 +66,7 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
         } else {
             sem_post(sem_id, 12);
             printf("Klient %d: Sklep jest pełny, czekam przed wejściem...\n", klient_id);
-            sleep(1); // Czekanie 1 sekundy przed ponownym sprawdzeniem
+            sleep(1);
         }
     }
 
@@ -140,8 +92,8 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     // Zakupy
     for (int i = 0; i < liczba_produktow; i++) {
         if (lista_zakupow[i].ilosc > 0) {
-            int produkt_id = lista_zakupow[i].id;  // Używamy ID produktu
-            sem_wait(sem_id, produkt_id);  // Używamy ID produktu jako indeksu semafora
+            int produkt_id = lista_zakupow[i].id; 
+            sem_wait(sem_id, produkt_id); 
             
             int dostepne = sklep->podajniki[produkt_id].produkt.ilosc;
             int zadane = lista_zakupow[i].ilosc;
@@ -165,13 +117,6 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     sklep->ilosc_klientow++;
     sem_post(sem_id, 12);
 
-    // Znalezienie kasy z najmniejszą kolejką
-    int kasa_id;
-    while ((kasa_id = znajdz_kase_z_najmniejsza_kolejka(sklep, sem_id)) == -1) {
-        printf("Klient %d: Wszystkie kasy są zamknięte, czekam...\n", klient_id);
-        sleep(1);
-    }
-
     // // Sprawdzenie, czy sklep jest zamknięty
     if (sklep->sklep_zamkniety) {
             printf("Klient %d: Sklep zamknięty, zwracam produkty do podajników i wychodzę\n", klient_id);
@@ -186,6 +131,13 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
             sem_post(sem_id, 12);
             return;
         }
+
+    // Znalezienie kasy z najmniejszą kolejką
+    int kasa_id;
+    while ((kasa_id = znajdz_kase_z_najmniejsza_kolejka(sklep, sem_id)) == -1) {
+        printf("Klient %d: Wszystkie kasy są zamknięte, czekam...\n", klient_id);
+        sleep(1);
+    }
 
     // Dodanie klienta do kolejki w wybranej kasie
     sem_wait(sem_id, 13 + kasa_id);
@@ -206,18 +158,13 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     
     // Czekanie na komunikat od kasjera
     message_buf rbuf;
-    if (msgrcv(msqid_kasy, &rbuf, sizeof(rbuf.mtext), getpid(), 0) == -1) {
-        if (errno == EIDRM) {
-            // Kolejka została usunięta - kończymy normalnie
-            //printf("Klient %d: Niestety dzisiaj nie kupię swojego ulubionego pieczywa\n", klient_id);
-            exit(0);
-        } else {
+    if (msgrcv(msqid_kasy, &rbuf, sizeof(rbuf.mtext), getpid(), 0) != -1) {
+        printf("Klient %d: Byłem obsłużony, mogę opuścić sklep\n", klient_id);
+    } else {
             perror("msgrcv klient");
             exit(1);
-        }
-    } else {
-        printf("Klient %d: Byłem obsłużony, mogę opuścić sklep\n", klient_id);
     }
+    
     // Klient opuszcza sklep
     sem_wait(sem_id, 12);
     sklep->ilosc_klientow--;
@@ -280,23 +227,24 @@ int main() {
                 break;
             }
         }
-        pid_t pid = fork();
-        if (pid == 0) { // Proces potomny
-            srand(time(NULL) ^ (getpid() << 16));
-            zakupy(sklep, sem_id, getpid(), msqid_klient);
-            exit(0);
-        } else if (pid > 0) { // Proces macierzysty
-            sleep(1);
-        } else {
-            perror("fork");
-            exit(1);
+        if (!sklep->sklep_zamkniety) {
+            pid_t pid = fork();
+            if (pid == 0) { // Proces potomny
+                srand(time(NULL) ^ (getpid() << 16));
+                zakupy(sklep, sem_id, getpid(), msqid_klient);
+                exit(0);
+            } else if (pid > 0) { // Proces macierzysty
+                sleep(rand()%3+1);
+            } else {
+                perror("fork");
+                exit(1);
+            }
         }
     }
 
-    
-
     // Czekanie na zakończenie wszystkich procesów potomnych
     while (wait(NULL) > 0);
+    
     // Wysłanie potwierdzenia do kierownika
     message_buf sbuf;
     sbuf.mtype = 1;
@@ -306,6 +254,6 @@ int main() {
         exit(1);
     }
 
-    cleanup_handler(0);
+    cleanup_handler();
     return 0;
 }

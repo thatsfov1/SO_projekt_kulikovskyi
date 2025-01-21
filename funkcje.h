@@ -14,5 +14,7 @@ void sem_post(int sem_id, int sem_num);
 void init_produkty(Sklep *sklep);
 void init_kosz(Kosz *kosz, Sklep *sklep);
 void drukuj_produkt(const char* nazwa, int ilosc);
+int znajdz_kase_z_najmniejsza_kolejka(Sklep *sklep, int sem_id);
+void losuj_liste_zakupow(Sklep *sklep, Produkt lista_zakupow[], int *liczba_produktow);
 void setup_signal_handlers(void (*cleanup_handler)(int), void (*evacuation_handler)(int));
 #endif

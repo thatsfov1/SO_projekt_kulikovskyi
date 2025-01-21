@@ -25,14 +25,6 @@ void initialize_message_queue()
     }
 }
 
-void cleanup_message_queue()
-{
-    if (msqid != -1)
-    {
-        msgctl(msqid, IPC_RMID, NULL);
-    }
-}
-
 // Wysłanie potwierdzenia do kierownika, że piekarz zakończył swoje zadania
 void send_acknowledgment()
 {
@@ -60,15 +52,10 @@ void print_inventory()
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną i wysyła potwierdzenie
 void cleanup_handler(int signum)
 {
-    
     if (sklep->inwentaryzacja && signum != SIGUSR1)
     {
         print_inventory();
     }
-    send_acknowledgment();
-    
-    shmdt(sklep);
-    cleanup_message_queue();
     exit(0);
 }
 
@@ -93,6 +80,7 @@ void wypiekaj_produkty(Sklep *sklep, int sem_id)
             if (strcmp(rbuf.mtext, close_store_message) == 0)
             {
                 printf("Piekarz: Otrzymałem komunikat o zamknięciu sklepu, kończę pracę.\n");
+                send_acknowledgment();
                 break;
             }
         }
@@ -127,7 +115,6 @@ void wypiekaj_produkty(Sklep *sklep, int sem_id)
 
         sleep(5);
     }
-    // send_acknowledgment();
 }
 
 int main()
