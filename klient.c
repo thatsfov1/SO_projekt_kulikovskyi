@@ -18,7 +18,7 @@ Sklep *sklep;
 int klient_index;
 int msqid_klient;
 
-// Funkcja czyszcząca, która odłącza pamięć współdzieloną
+// Funkcja czyszcząca
 void cleanup_handler()
 {
     exit(0);
@@ -39,7 +39,7 @@ void evacuation_handler(int signum)
         sem_post(sem_id, produkt_id);
     }
 
-    // Zmniejszenie liczby klientów w sklepie
+    // klient opuszcza sklep po odłożeniu produktów do kosza
     sem_wait(sem_id, SEM_SKLEP);
     sklep->ilosc_klientow--;
     sem_post(sem_id, SEM_SKLEP);
@@ -47,13 +47,13 @@ void evacuation_handler(int signum)
     cleanup_handler();
 }
 
-// Zakupy klienta
+// zakupy klienta
 void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     signal(SIGUSR1, evacuation_handler);
 
     message_buf kierownik_rbuf;
 
-    // Czekanie na wejście do sklepu
+    // Czekanie na wejście do sklepu, jeśli sklep jest pełny to czeka przed wejściem 1s i probuje ponownie
     while (1) {
         sem_wait(sem_id, SEM_SKLEP);
         if (sklep->ilosc_klientow < MAX_KLIENTOW) {
@@ -68,7 +68,7 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
         }
     }
 
-    // Losowanie listy zakupów
+    // Losowanie listy zakupów klienta
     Produkt lista_zakupow[MAX_PRODUKTOW] = {0};
     int liczba_produktow = 0;
 
@@ -86,7 +86,7 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     }
     printf("\n");
 
-    // Zakupy
+    // Pobieranie produktów z podajników, ile jest dostępne
     for (int i = 0; i < liczba_produktow; i++) {
         if (lista_zakupow[i].ilosc > 0) {
             int produkt_id = lista_zakupow[i].id; 
@@ -113,7 +113,7 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     sklep->klienci[klient_index].ilosc_zakupow = liczba_produktow;
     sem_post(sem_id, SEM_SKLEP);
 
-    // Sprawdzenie, czy sklep jest zamknięty
+    // Sprawdzenie, czy sklep jest zamknięty, jeśli tak to zwrócenie produktów do podajników i wyjście
     if (sklep->sklep_zamkniety) {
             printf("Klient %d: Sklep zamknięty, zwracam produkty do podajników i wychodzę\n", klient_id);
             for (int i = 0; i < liczba_produktow; i++) {
@@ -136,22 +136,21 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
         sleep(1);
     }
 
-    // Dodanie klienta do kolejki w wybranej kasie
+    // Klient ustawia się w kolejce do tej kasy
     sem_wait(sem_id, 13 + kasa_id);
     sklep->kasjerzy[kasa_id].kolejka_klientow[sklep->kasjerzy[kasa_id].tail] = klient_index;
     sklep->kasjerzy[kasa_id].tail = (sklep->kasjerzy[kasa_id].tail + 1) % MAX_KLIENTOW;
-    sklep->kasjerzy[kasa_id].ilosc_klientow++; // Zwiększenie liczby klientów w kasie
+    sklep->kasjerzy[kasa_id].ilosc_klientow++;
     sem_post(sem_id, 13 + kasa_id);
  
 
     printf("Klient %d: Ustawiam się w kolejce do kasy %d\n", klient_id, kasa_id + 1);
 
-    // Otwieranie kolejki komunikatów
+    // Czekanie na komunikat od kasjera
     key_t key = ftok("/tmp", kasa_id + 1);
     int msqid_kasy;
     initialize_message_queue(&msqid_kasy, key);
     
-    // Czekanie na komunikat od kasjera
     message_buf rbuf;
     if (msgrcv(msqid_kasy, &rbuf, sizeof(rbuf.mtext), getpid(), 0) != -1) {
         printf("Klient %d: Byłem obsłużony, mogę opuścić sklep\n", klient_id);
@@ -159,7 +158,7 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
             exit(1);
     }
     
-    // Klient opuszcza sklep
+    // Klient opuszcza sklep po zakupach
     sem_wait(sem_id, SEM_SKLEP);
     sklep->ilosc_klientow--;
     sem_post(sem_id, SEM_SKLEP);
@@ -181,6 +180,7 @@ int main() {
     initialize_message_queue(&msqid_klient, key);
 
 
+    // Tworzenie procesów klientów (od 1 do 3 sekund między wejściami)
     while (1) {
         message_buf rbuf;
         if (msgrcv(msqid_klient, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1) {
@@ -196,7 +196,7 @@ int main() {
                 zakupy(sklep, sem_id, getpid(), msqid_klient);
                 exit(0);
             } else if (pid > 0) { 
-                sleep(1);
+                sleep(rand() % 3 + 1);
             } else {
                 perror("fork");
                 exit(1);
@@ -208,7 +208,7 @@ int main() {
     pid_t pid;
     while ((pid = waitpid(-1, NULL, WNOHANG)) > 0);
     
-    // Wysłanie potwierdzenia do kierownika
+    // Wysłanie potwierdzenia do kierownika o zakonczeniu zakupów przez klientów
     send_acknowledgment_to_kierownik();
 
     cleanup_handler();

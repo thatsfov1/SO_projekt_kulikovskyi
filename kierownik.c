@@ -15,6 +15,8 @@ int shm_id;
 int sem_id;
 int msqid;
 
+
+// Wydrukowanie stanu podajników
 void drukuj_stan_podajnikow() {
     printf("Kierownik: Na podajnikach zostało: ");
     for (int i = 0; i < MAX_PRODUKTOW; i++) {
@@ -26,6 +28,7 @@ void drukuj_stan_podajnikow() {
     printf("\n");
 }
 
+// Wydrukowanie ilosci wyprodukowanych produktów przez piekarza
 void drukuj_statystyki_piekarza() {
     printf("Piekarz: Wyprodukował ");
     for (int i = 0; i < MAX_PRODUKTOW; i++) {
@@ -35,6 +38,7 @@ void drukuj_statystyki_piekarza() {
     printf("\n");
 }
 
+// Wydrukowanie sprzedaży przez kazdego kasjera (ile kazdego produktu sprzedano)
 void drukuj_sprzedaz_kasjera(int kasjer_id) {
     printf("Kasa %d: ", kasjer_id + 1);
     
@@ -56,7 +60,7 @@ void drukuj_sprzedaz_kasjera(int kasjer_id) {
     printf("\n");
 }
 
-// Wydrukowanie stanu inwentaryzacji
+// Wydrukowanie stanu inwentaryzacji (razem podajniki, piekarz, kasy)
 void drukuj_inwentaryzacje()
 {
     drukuj_stan_podajnikow();
@@ -67,7 +71,7 @@ void drukuj_inwentaryzacje()
     }
 }
 
-// Wydrukowanie stanu kosza po zamknięciu sklepu
+// Wydrukowanie stanu kosza (do którego trafiają produkty podczas ewakuacji)
 void drukuj_kosz()
 {
     printf("Kierownik: Stan kosza po zamknięciu sklepu:\n");
@@ -80,7 +84,7 @@ void drukuj_kosz()
     }
 }
 
-// Wysłanie komunikatu o zamknięciu sklepu do wszystkich procesów
+// Wysłanie komunikatu o decyzji zamknięcia sklepu do wszystkich procesów
 void send_close_message()
 {
     sem_wait(sem_id, SEM_CLOSE);
@@ -88,9 +92,9 @@ void send_close_message()
     sklep->sklep_zamkniety = 1;
 
     key_t keys[5] = {
-        ftok("/tmp", 1),         
-        ftok("/tmp", 2),          
-        ftok("/tmp", 3),          
+        ftok("/tmp", msq_kasa1),         
+        ftok("/tmp", msq_kasa2),          
+        ftok("/tmp", msq_kasa3),          
         ftok("/tmp", msq_piekarz), 
         ftok("/tmp", msq_klient)   
     };
@@ -110,10 +114,10 @@ void send_close_message()
     }
     sem_post(sem_id, SEM_CLOSE);
 
-    printf(BLUE "Kierownik: Wkrótce sklep zamyka się, wszyscy klienci stojący w kolejce do kas będą obsłużeni \n" RESET);
+    printf(BLUE "Kierownik: Wkrótce sklep zamyka się, wszyscy klienci stojący w kolejce do kas będą obsłużeni \n");
 }
 
-// Oczekiwanie na potwierdzenia od wszystkich procesów
+// Oczekiwanie na potwierdzenia gotowości na zamknięcie od wszystkich procesów
 void wait_for_acknowledgments()
 {
     message_buf rbuf;
@@ -130,7 +134,7 @@ void wait_for_acknowledgments()
     }
 }
 
-// Funkcja czyszcząca, która odłącza pamięć współdzieloną i wysyła potwierdzenia
+// Funkcja czyszcząca, drukująca inwentaryzację jeśli była i stan kosza przy ewakuacji
 void cleanup_handler(int signum){
 
     if (sklep->inwentaryzacja && signum != SIGUSR1){
@@ -174,6 +178,8 @@ int main(){
 
     initialize_shm_sklep(&shm_id, &sklep, SKLEP_KEY);
 
+
+    // losowanie czy będzie ewakuacja i wysłanie sygnału do ewakuacji
     int czy_bedzie_ewakuacja = rand() % 5 + 1;
     if (czy_bedzie_ewakuacja == 1)
     {
@@ -188,11 +194,12 @@ int main(){
         }
     }
 
+    // wysłanie komunikatu o zamknięciu sklepu innym procesom 
     sleep(CZAS_PRACY);
     send_close_message();
     
     wait_for_acknowledgments();
-
+    // losowanie czy będzie inwentaryzacja po zamknięciu sklepu
     int czy_bedzie_inwentaryzacja = rand() % 5 + 1;
         if (czy_bedzie_inwentaryzacja == 1)
         {

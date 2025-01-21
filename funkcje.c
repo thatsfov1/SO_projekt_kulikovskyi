@@ -6,6 +6,7 @@
 #include <sys/msg.h>
 #include <sys/ipc.h>
 
+// Operacje na semaforach
 void sem_wait(int sem_id, int sem_num) {
     struct sembuf sem_op;
     sem_op.sem_num = sem_num;
@@ -28,6 +29,7 @@ void sem_post(int sem_id, int sem_num) {
     }
 }
 
+// Inicjalizacja pamięci współdzielonej dla sklepu
 void initialize_shm_sklep(int *shm_id, Sklep **sklep, int key) {
     *shm_id = shmget(key, sizeof(Sklep), IPC_CREAT | 0666);
     if (*shm_id < 0) {
@@ -42,6 +44,7 @@ void initialize_shm_sklep(int *shm_id, Sklep **sklep, int key) {
     }
 }
 
+// Tworzenie semaforów
 void initialize_semaphores(int *sem_id, int key, int num_semaphores) {
     *sem_id = semget(key, num_semaphores, IPC_CREAT | 0666);
     if (*sem_id == -1) {
@@ -50,6 +53,7 @@ void initialize_semaphores(int *sem_id, int key, int num_semaphores) {
     }
 }
 
+// Inicjalizacja kolejki komunikatów
 void initialize_message_queue(int *msqid, int key) {
     *msqid = msgget(key, 0666 | IPC_CREAT);
     if (*msqid == -1) {
@@ -58,6 +62,7 @@ void initialize_message_queue(int *msqid, int key) {
     }
 }
 
+// Inicjalizacja sklepu (produkty i inne)
 void init_produkty(Sklep *sklep) {
     memset(sklep, 0, sizeof(Sklep));
     char *nazwy[MAX_PRODUKTOW] = {
@@ -83,6 +88,7 @@ void init_produkty(Sklep *sklep) {
     }
 }
 
+// funkcja wysyłająca potwierdzenie do kierownika
 void send_acknowledgment_to_kierownik() {
     key_t kierownik_key = ftok("/tmp", msq_kierownik);
     int kierownik_msqid = msgget(kierownik_key, 0666 | IPC_CREAT);
@@ -103,7 +109,7 @@ void drukuj_produkt(const char* nazwa, int ilosc) {
     printf("%s %d szt. ", nazwa, ilosc);
 }
 
-// Losowanie listy zakupów
+// Losowanie listy zakupów dla klienta
 void losuj_liste_zakupow(Sklep *sklep, Produkt lista_zakupow[], int *liczba_produktow)
 {
     *liczba_produktow = rand() % 3 + 2; // Min. 2, max. 4 produkty
@@ -138,6 +144,8 @@ int znajdz_kase_z_najmniejsza_kolejka(Sklep *sklep, int sem_id)
     return wybrana_kasa;
 }
 
+
+// Zarządzanie sygnałami
 void setup_signal_handlers(void (*cleanup_handler)(int), void (*evacuation_handler)(int)) {
     signal(SIGINT, cleanup_handler);
     signal(SIGTERM, cleanup_handler);

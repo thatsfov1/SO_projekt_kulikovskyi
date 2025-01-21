@@ -14,33 +14,20 @@ int shm_id;
 Sklep *sklep;
 int msqid;
 
-// Wysłanie danych inwentaryzacyjnych do kierownika, jeśli inwentaryzacja jest włączona
-void print_inventory()
-{
-    for (int i = 0; i < MAX_PRODUKTOW; i++)
-    {
-        printf("Piekarz: Wyprodukował %s %d szt.\n", sklep->podajniki[i].produkt.nazwa, sklep->statystyki_piekarza.wyprodukowane[i]);
-    }
-}
-
-// Funkcja czyszcząca, która odłącza pamięć współdzieloną i wysyła potwierdzenie
+// funkcja czyszcząca
 void cleanup_handler(int signum)
 {
-    if (sklep->inwentaryzacja && signum != SIGUSR1)
-    {
-        print_inventory();
-    }
     exit(0);
 }
 
-// Obsługa sygnału ewakuacji
+// obsługa sygnału ewakuacji
 void evacuation_handler(int signum)
 {
     printf("Piekarz: Ewakuacja!, kończę pracę.\n");
     cleanup_handler(SIGUSR1);
 }
 
-// Funkcja wypiekająca produkty i dodająca je do podajników
+// piekarz kazde 5 sekund wypieka losową ilość produktów i próbuje dodać do podajników
 void wypiekaj_produkty(Sklep *sklep, int sem_id)
 {
     srand(time(NULL));
@@ -48,7 +35,7 @@ void wypiekaj_produkty(Sklep *sklep, int sem_id)
 
     while (1)
     {
-        // Sprawdzenie, czy otrzymano komunikat o zamknięciu sklepu
+        // sprawdza, czy otrzymano komunikat o zamknięciu sklepu, jesli tak to kończy pracę i wysyła potwierdzenie do kierownika
         if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1)
         {
             if (strcmp(rbuf.mtext, close_store_message) == 0)
@@ -58,13 +45,17 @@ void wypiekaj_produkty(Sklep *sklep, int sem_id)
                 break;
             }
         }
+
+        printf("=============================\n");
         for (int i = 0; i < MAX_PRODUKTOW; i++)
         {
             sem_wait(sem_id, i);
 
             int ilosc_wypiekow = rand() % 5 + 1;
+            
             printf("Piekarz: Wypiekłem %d sztuk produktu %s, próbuję dodać do podajnika.\n", ilosc_wypiekow, sklep->podajniki[i].produkt.nazwa);
 
+            // sprawdza, czy podajnik nie jest pełny, jeśli nie to dodaje produkty
             if (sklep->podajniki[i].produkt.ilosc < MAX_PRODUKTOW_W_PODAJNIKU)
             {
                 int wolne_miejsce = MAX_PRODUKTOW_W_PODAJNIKU - sklep->podajniki[i].produkt.ilosc;
@@ -86,6 +77,7 @@ void wypiekaj_produkty(Sklep *sklep, int sem_id)
 
             sem_post(sem_id, i);
         }
+        printf("=============================\n");
 
         sleep(5);
     }

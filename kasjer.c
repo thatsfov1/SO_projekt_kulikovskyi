@@ -13,39 +13,9 @@ int sem_id;
 int sklep_zamkniety = 0;
 int kasa_id;
 
-void print_inventory()
-{
-    int sprzedal_cos = 0;
-    printf("Kasa %d: ", kasa_id + 1);
-
-    for (int j = 0; j < MAX_PRODUKTOW; j++)
-    {
-        if (sklep->kasjerzy[kasa_id].ilosc_sprzedanych[j] > 0)
-        {
-            if (!sprzedal_cos)
-            {
-                printf("Sprzedano: ");
-                sprzedal_cos = 1;
-            }
-            printf("%s: %d szt. ",
-                   sklep->podajniki[j].produkt.nazwa,
-                   sklep->kasjerzy[kasa_id].ilosc_sprzedanych[j]);
-        }
-    }
-
-    if (!sprzedal_cos)
-    {
-        printf("brak sprzedanych produktów przez kasę");
-    }
-    printf("\n");
-}
-// Funkcja czyszcząca, która odłącza pamięć współdzieloną i wysyła potwierdzenia
+// Funkcja czyszcząca
 void cleanup_handler(int signum)
 {
-    if (sklep->inwentaryzacja && signum != SIGUSR1)
-    {
-        print_inventory();
-    }
     exit(0);
 }
 
@@ -56,7 +26,7 @@ void evacuation_handler(int signum)
     cleanup_handler(SIGUSR1);
 }
 
-// Funkcja monitorująca liczbę klientów i zarządzająca kasami
+// monitorowanie ilości klientów w sklepie, jesli jest ich mniej niż 10 to kasa 3 jest zamknięta
 void monitoruj_kasy(Sklep *sklep, int sem_id)
 {
     while (!sklep->sklep_zamkniety)
@@ -91,6 +61,8 @@ void monitoruj_kasy(Sklep *sklep, int sem_id)
     }
 }
 
+
+// pobiera id klienta który jest pierwszy w kolejce
 int pobierz_id_klienta_z_kolejki(Sklep *sklep, int kasa_id)
 {
     if (sklep->kasjerzy[kasa_id].head == sklep->kasjerzy[kasa_id].tail) {
@@ -116,6 +88,7 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
     message_buf rbuf;
     int kasa_zamknieta = 0;
     while (!kasa_zamknieta) {
+
         // Sprawdzenie, czy otrzymano komunikat o zamknięciu sklepu
         if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1) {
             if (strcmp(rbuf.mtext, close_store_message) == 0) {
@@ -125,21 +98,22 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
         }
         sem_wait(sem_id, 13 + kasa_id);
         int kolejka_pusta = (sklep->kasjerzy[kasa_id].head == sklep->kasjerzy[kasa_id].tail);
-        
+
+        // jesli kasa otrzymała komunikat o zamknięciu sklepu i nie ma klientów w kolejce to zamyka się
         if (kasa_zamknieta && kolejka_pusta) {
             sem_post(sem_id, 13 + kasa_id);
             printf("Kasa %d: Zamykam się, sklep zamknięty i brak klientów w kolejce.\n", kasa_id + 1);
             break;
         }
-        
+        // jesli nie, to obsługuje klienta
         if (!kolejka_pusta) {
             int klient_index = pobierz_id_klienta_z_kolejki(sklep, kasa_id);
             if (klient_index != -1) {
+                // obliczenie sumy zakupów klienta
                 float suma = 0;
                 for (int i = 0; i < sklep->klienci[klient_index].ilosc_zakupow; i++) {
                     Produkt *produkt = &sklep->klienci[klient_index].lista_zakupow[i];
                     if (produkt->ilosc > 0) {
-                        // Używamy ceny z produktu w liście zakupów
                         suma += produkt->ilosc * produkt->cena;
                 
                         // Aktualizacja statystyk sprzedaży
@@ -150,14 +124,13 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
                         }
                     }
                 }
-                sleep(3);  // Symulacja obsługi klienta
+                // symulacja obsługi klienta
+                sleep(3);  
                 printf("Kasa %d: Klient %d Obsłużony, Suma zakupu %.2f zł\n",
                        kasa_id + 1, sklep->klienci[klient_index].klient_id, suma);
-
-                sklep->kasjerzy[kasa_id].suma += suma;
             
                 sklep->kasjerzy[kasa_id].ilosc_klientow--;
-
+                // wysłanie potwierdzenia do klienta
                 message_buf sbuf = {.mtype = sklep->klienci[klient_index].klient_id};
                 strcpy(sbuf.mtext, klient_rozliczony);
                 msgsnd(msqid, &sbuf, sizeof(sbuf.mtext), 0);
@@ -169,7 +142,7 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
         usleep(100000);
     }
 
-    // Wysłanie potwierdzenia do kierownika
+    // Wysłanie potwierdzenia do kierownika, że kasa się zamknęła
     send_acknowledgment_to_kierownik();
 }
 
@@ -185,7 +158,7 @@ int main() {
         exit(1);
     }
 
-    // Uruchamianie wątków lub procesów dla każdej kasy
+    // Uruchomienie kasjerów
     for (int i = 0; i < MAX_KASJEROW; i++) {
         pid_t pid = fork();
         if (pid == 0) {
@@ -195,7 +168,6 @@ int main() {
         }
     }
 
-    // Monitorowanie liczby klientów i zarządzanie kasami
     monitoruj_kasy(sklep, sem_id);
     return 0;
 }
