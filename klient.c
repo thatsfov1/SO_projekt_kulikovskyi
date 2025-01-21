@@ -39,7 +39,7 @@ void cleanup_handler(int signum) {
 
 // Obsługa sygnału ewakuacji
 void evacuation_handler(int signum) {
-    printf("Klient %d: Otrzymałem sygnał ewakuacji, odkładam produkty i wychodzę.\n", getpid());
+    printf("Klient %d: Ewakuacja!, odkładam produkty do kosza i wychodzę.\n", getpid());
 
     // Odkładanie produktów do kosza
     for (int i = 0; i < sklep->klienci[klient_index].ilosc_zakupow; i++) {
@@ -158,12 +158,12 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     int kasa_id;
     while ((kasa_id = znajdz_kase_z_najmniejsza_kolejka(sklep, sem_id)) == -1) {
         printf("Klient %d: Wszystkie kasy są zamknięte, czekam...\n", klient_id);
-        usleep(1000000); // Czekanie 1 sekundy przed ponownym sprawdzeniem
+        sleep(1);
     }
 
     // // Sprawdzenie, czy sklep jest zamknięty
     if (sklep->sklep_zamkniety) {
-            printf("Klient %d: Sklep zamknięty, odkładam produkty do podajników i wychodzę\n", klient_id);
+            printf("Klient %d: Sklep zamknięty, zwracam produkty do podajników i wychodzę\n", klient_id);
             for (int i = 0; i < liczba_produktow; i++) {
                 int produkt_id = lista_zakupow[i].id;
                 sem_wait(sem_id, produkt_id);
@@ -198,14 +198,14 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     if (msgrcv(msqid_kasy, &rbuf, sizeof(rbuf.mtext), getpid(), 0) == -1) {
         if (errno == EIDRM) {
             // Kolejka została usunięta - kończymy normalnie
-            printf("Klient %d: Kolejka została usunięta, kończę pracę\n", klient_id);
+            //printf("Klient %d: Niestety dzisiaj nie kupię swojego ulubionego pieczywa\n", klient_id);
             exit(0);
         } else {
             perror("msgrcv klient");
             exit(1);
         }
     } else {
-        printf("Klient %d: Otrzymałem komunikat od kasjera, mogę opuścić sklep\n", klient_id);
+        printf("Klient %d: Byłem obsłużony, mogę opuścić sklep\n", klient_id);
     }
     // Klient opuszcza sklep
     sem_wait(sem_id, 12);
@@ -265,7 +265,7 @@ int main() {
         message_buf rbuf;
         if (msgrcv(msqid_klient, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1) {
             if (strcmp(rbuf.mtext, close_store_message) == 0) {
-                printf("Klient main: Otrzymałem komunikat o zamknięciu sklepu, nie tworzę nowych klientów.\n");
+                printf("Klienci widzą, że sklep jest zamknięty, już nikt więcej do sklepu nie wejdzie\n");
                 break;
             }
         }

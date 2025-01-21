@@ -80,10 +80,10 @@ void send_close_message() {
         }
     }
 
-    printf(BLUE "Kierownik: Wkrótce sklep zamyka się, wszyscy klienci stojący w kolejce do kas będą obsłużeni, innych poproszę odłożyć towary do podajników i wyjść ze sklepu\n" RESET);
+    printf(BLUE "Kierownik: Wkrótce sklep zamyka się, wszyscy klienci stojący w kolejce do kas będą obsłużeni \n" RESET);
 }
 
-// Wysłanie komunikatu do main.c o gotowości do zamknięcia
+// Wysłanie komunikatu do main o gotowości do zamknięcia
 void send_close_message_to_main() {
     key_t main_key = ftok("/tmp", msq_main);
     int main_msqid = msgget(main_key, 0666 | IPC_CREAT);
@@ -119,11 +119,11 @@ void wait_for_acknowledgments() {
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną i wysyła potwierdzenia
 void cleanup_handler(int signum) {
 
-    if (sklep->inwentaryzacja) {
-        print_inventory();
+    if (sklep->inwentaryzacja && signum != SIGUSR1) {
+            print_inventory();
     }
 
-    if (signum) {
+    if (signum == SIGUSR1) {
         print_kosz();
     }
 
@@ -132,7 +132,7 @@ void cleanup_handler(int signum) {
     
 
     printf(GREEN "Kierownik: Wszyscy klienci opuścili sklep. \n" RESET);
-    if (signum) {
+    if (signum == SIGUSR1) {
         printf(GREEN "Kierownik: Ewakuacja zakończona. \n" RESET);
     }
 
@@ -187,13 +187,13 @@ int main() {
 
     int czy_bedzie_inwentaryzacja = 1;
     if (czy_bedzie_inwentaryzacja == 1) {
-        printf(BLUE "Kierownik: Inwentaryzacja będzie przeprowadzona.\n" RESET);
+        printf(BLUE "Kierownik: w dniu dzisiejszym przeprowadzimy inwentaryzację.\n" RESET);
         sklep->inwentaryzacja = 1;
     } else {
-        printf(BLUE "Kierownik: Inwentaryzacja nie będzie przeprowadzona.\n" RESET);
+        printf(BLUE "Kierownik: Dzisiaj nie będziemy przeprowadzać inwentaryzacji.\n" RESET);
     }
 
-    int czy_bedzie_ewakuacja = rand() % 10 + 1;
+    int czy_bedzie_ewakuacja = 2;
     if (czy_bedzie_ewakuacja == 1) {
         sleep(rand() % CZAS_PRACY + 5);
         if (kill(0, SIGUSR1) == 0) {
@@ -205,7 +205,7 @@ int main() {
 
     sleep(CZAS_PRACY);
     send_close_message();
-    
+
     wait_for_acknowledgments();
     cleanup_handler(0);
     return 0;

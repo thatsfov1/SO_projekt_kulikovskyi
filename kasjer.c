@@ -13,29 +13,49 @@ int sem_id;
 int sklep_zamkniety = 0;
 int kasa_id;
 
+void print_inventory(){
+    int sprzedal_cos = 0;
+    printf("Kasa %d: ", kasa_id + 1);
+        
+    for (int j = 0; j < MAX_PRODUKTOW; j++) {
+        if (sklep->kasjerzy[kasa_id].ilosc_sprzedanych[j] > 0) {
+            if (!sprzedal_cos) {
+                printf("Sprzedano: ");
+                sprzedal_cos = 1;
+            }
+            printf("%s: %d szt. ", 
+                sklep->podajniki[j].produkt.nazwa, 
+                sklep->kasjerzy[kasa_id].ilosc_sprzedanych[j]);
+        }
+    }
+        
+    if (!sprzedal_cos) {
+        printf("brak sprzedanych produktów przez kasę");
+    }
+    printf("\n");
+}
+
+void send_acknowledgment(){
+    key_t kierownik_key = ftok("/tmp", msq_kierownik);
+    int kierownik_msqid = msgget(kierownik_key, 0666 | IPC_CREAT);
+    if (kierownik_msqid == -1) {
+        perror("msgget kierownik");
+        exit(1);
+    }
+    message_buf sbuf;
+    sbuf.mtype = 1;
+    strcpy(sbuf.mtext, acknowledgment_to_kierownik);
+    if (msgsnd(kierownik_msqid, &sbuf, sizeof(sbuf.mtext), 0) == -1) {
+        perror("msgsnd");
+        exit(1);
+    }
+}
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną i wysyła potwierdzenia
 void cleanup_handler(int signum) {
-    if (sklep->inwentaryzacja) {
-        int sprzedal_cos = 0;
-        printf("Kasjer %d: ", kasa_id + 1);
-        
-        for (int j = 0; j < MAX_PRODUKTOW; j++) {
-            if (sklep->kasjerzy[kasa_id].ilosc_sprzedanych[j] > 0) {
-                if (!sprzedal_cos) {
-                    printf("Sprzedał: ");
-                    sprzedal_cos = 1;
-                }
-                printf("%s: %d szt. ", 
-                    sklep->podajniki[j].produkt.nazwa, 
-                    sklep->kasjerzy[kasa_id].ilosc_sprzedanych[j]);
-            }
-        }
-        
-        if (!sprzedal_cos) {
-            printf("brak sprzedanych produktów przez kasę");
-        }
-        printf("\n");
+    if (sklep->inwentaryzacja && signum != SIGUSR1) {
+            print_inventory();
     }
+
     shmdt(sklep);
     for (int i = 0; i < MAX_KASJEROW; i++) {
         key_t key = ftok("/tmp", i + 1);
@@ -49,13 +69,13 @@ void cleanup_handler(int signum) {
 
 // Obsługa sygnału ewakuacji
 void evacuation_handler(int signum) {
-    printf("Kasjer: Otrzymałem sygnał ewakuacji, kończę pracę.\n");
-    cleanup_handler(signum);
+    printf("Kasa %d: Ewakuacja!, zamykam się.\n", kasa_id + 1);
+    cleanup_handler(SIGUSR1);
 }
 
 // Funkcja monitorująca liczbę klientów i zarządzająca kasami
 void monitoruj_kasy(Sklep *sklep, int sem_id) {
-    while (!sklep->sklep_zamkniety) { // Używamy pola ze struktury Sklep
+    while (!sklep->sklep_zamkniety) { 
         sem_wait(sem_id, 12);
         int ilosc_klientow = sklep->ilosc_klientow;
         sem_post(sem_id, 12);
@@ -104,13 +124,6 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
     }
     message_buf rbuf;
 
-    key_t kierownik_key = ftok("/tmp", msq_kierownik);
-    int kierownik_msqid = msgget(kierownik_key, 0666 | IPC_CREAT);
-    if (kierownik_msqid == -1) {
-        perror("msgget kierownik");
-        exit(1);
-    }
-
     while (1) {
         // Sprawdzenie, czy otrzymano komunikat o zamknięciu sklepu
         if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1) {
@@ -152,7 +165,7 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
                 sklep->kasjerzy[kasa_id].ilosc_klientow--;
 
                 message_buf sbuf = {.mtype = sklep->klienci[klient_index].klient_id};
-                strcpy(sbuf.mtext, "OK");
+                strcpy(sbuf.mtext, klient_rozliczony);
                 msgsnd(msqid, &sbuf, sizeof(sbuf.mtext), 0);
             }
         }
@@ -162,19 +175,12 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
     }
 
     // Wysłanie potwierdzenia do kierownika
-    message_buf sbuf;
-    sbuf.mtype = 1;
-    strcpy(sbuf.mtext, acknowledgment_to_kierownik);
-    if (msgsnd(kierownik_msqid, &sbuf, sizeof(sbuf.mtext), 0) == -1) {
-        perror("msgsnd");
-        exit(1);
-    }
+    send_acknowledgment();
     msgctl(msqid, IPC_RMID, NULL);
 }
 
 int main() {
-    signal(SIGTERM, cleanup_handler);
-    signal(SIGUSR1, evacuation_handler);
+    setup_signal_handlers(cleanup_handler, evacuation_handler);
 
     int shm_id = shmget(SHM_KEY, sizeof(Sklep), 0666);
     if (shm_id < 0) {

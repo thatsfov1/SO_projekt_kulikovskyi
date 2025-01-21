@@ -19,27 +19,15 @@ Kosz *kosz;
 
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną i usuwa semafory oraz kolejki komunikatów
 void cleanup(int signum) {
-    // if (signum == SIGUSR1) {
-    //     printf(RED "\nEwakuacja w toku...\n" RESET);
-        
-    //     // Wait for message from kierownik
-    //     key_t key = ftok("/tmp", msq_main);
-    //     int msqid = msgget(key, 0666 | IPC_CREAT);
-    //     message_buf rbuf;
-        
-    //     while (1) {
-    //         if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), 0, 0) != -1) {
-    //             if (strcmp(rbuf.mtext, ready_to_close) == 0) {
-    //                 break;
-    //             }
-    //         }
-    //         sleep(1);
-    //     }
-    // }
+    while (1) {
+        if (wait(NULL) < 0 && errno == ECHILD) {
+            break;
+        }
+    }
     printf(RED "\nZamykanie sklepu...\n" RESET);
 
     // Wysłanie sygnału do wszystkich procesów w grupie
-    kill(0, SIGTERM);
+    //kill(0, SIGTERM);
  
     sleep(1);
     // Czyszczenie zasobów
@@ -70,7 +58,7 @@ void cleanup(int signum) {
 
 // Obsługa sygnału ewakuacji
 void evacuation_handler(int signum) {
-    printf("Main: Otrzymałem sygnał ewakuacji, kończę pracę.\n");
+    //printf("Main: Otrzymałem sygnał ewakuacji, kończę pracę.\n");
     cleanup(signum);
 }
 
@@ -121,7 +109,7 @@ int main() {
     init_produkty(sklep);
     init_kosz(kosz, sklep);
     sklep->sklep_zamkniety = 0;
-    printf("Nacisnij 'e' dla wysłania sygnału o ewakuację.\n");
+    //printf("Nacisnij 'e' dla wysłania sygnału o ewakuację.\n");
 
     // Uruchamianie procesów
     pid_t kierownik_pid, piekarz_pid, kasjer_pid, klient_pid;
@@ -141,14 +129,6 @@ int main() {
     if ((klient_pid = fork()) == 0) {
         execl("./klient", "./klient", NULL);
     }
-
-    // Tworzenie kolejki komunikatów dla kierownika
-    // key_t kierownik_key = ftok("/tmp", msq_kierownik);
-    // int kierownik_msqid = msgget(kierownik_key, 0666 | IPC_CREAT);
-    // if (kierownik_msqid == -1) {
-    //     perror("msgget kierownik");
-    //     exit(1);
-    // }
 
     key_t main_key = ftok("/tmp", msq_main);
     int main_msqid = msgget(main_key, 0666 | IPC_CREAT);
@@ -183,11 +163,11 @@ int main() {
     }
 
     // Główna pętla oczekiwania na zakończenie procesów
-    while (1) {
-        if (wait(NULL) < 0 && errno == ECHILD) {
-            break;
-        }
-    }
+    // while (1) {
+    //     if (wait(NULL) < 0 && errno == ECHILD) {
+    //         break;
+    //     }
+    // }
 
     cleanup(0);
 

@@ -43,7 +43,7 @@ void send_acknowledgment() {
 }
 
 // Wysłanie danych inwentaryzacyjnych do kierownika, jeśli inwentaryzacja jest włączona
-void send_inventory() {
+void print_inventory() {
     for (int i = 0; i < MAX_PRODUKTOW; i++) {
         printf("Piekarz: Wyprodukował %s %d szt.\n", sklep->podajniki[i].produkt.nazwa, sklep->statystyki_piekarza.wyprodukowane[i]);
     }
@@ -52,19 +52,19 @@ void send_inventory() {
 
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną i wysyła potwierdzenie
 void cleanup_handler(int signum) {
-    if (sklep->inwentaryzacja) {
-        send_inventory();
+    if (sklep->inwentaryzacja && signum != SIGUSR1) {
+            print_inventory();
     }
-    shmdt(sklep);
     send_acknowledgment();
+    shmdt(sklep);
     cleanup_message_queue();
     exit(0);
 }
 
 // Obsługa sygnału ewakuacji
 void evacuation_handler(int signum) {
-    printf("Piekarz: Otrzymałem sygnał ewakuacji, kończę pracę.\n");
-    cleanup_handler(signum);
+    printf("Piekarz: Ewakuacja!, kończę pracę.\n");
+    cleanup_handler(SIGUSR1);
 }
 
 // Funkcja wypiekająca produkty i dodająca je do podajników
