@@ -32,14 +32,15 @@
 #define ready_to_close "READY_TO_CLOSE"
 
 // indeksy semaforów 
-#define SEM_MUTEX_CUSTOMERS 0    // Mutual exclusion for customer count
-#define SEM_MUTEX_STORE    1     // Mutual exclusion for store status
-#define SEM_STORE_CLOSE    2     // Store closing coordination
-#define SEM_QUEUE_MUTEX    3     // Queue access control
-#define SEM_DISPENSER      4     // Product dispenser access (12 semaphores)
-#define SEM_CASHIER_MUTEX  16    // Cashier status (3 semaphores)
-#define SEM_BASKET_MUTEX   19    // Evacuation basket access
-#define SEM_STATS_MUTEX    20    // Statistics access
+#define SEM_MUTEX_CUSTOMERS 0 
+#define SEM_MUTEX_STORE 1  
+#define SEM_STORE_CLOSE 2   
+#define SEM_QUEUE_MUTEX 3 
+#define SEM_DISPENSER 4     
+#define SEM_CASHIER_MUTEX 16   
+#define SEM_BASKET_MUTEX 19   
+#define SEM_STATS_MUTEX 20   
+#define SEM_MUTEX_CUSTOMERS_NUMBER 21   
 
 
 // Kolory

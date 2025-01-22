@@ -79,7 +79,7 @@ void drukuj_inwentaryzacje()
 
 // Wydrukowanie stanu kosza (do którego trafiają produkty podczas ewakuacji)
 void drukuj_kosz() {
-    sem_wait(sem_id, SEM_BASKET_MUTEX);
+    //sem_wait(sem_id, SEM_BASKET_MUTEX);
     printf("Kierownik: Stan kosza po zamknięciu sklepu:\n");
     for (int i = 0; i < MAX_PRODUKTOW; i++) {
         if (sklep->kosz.produkty[i].ilosc > 0) {
@@ -87,7 +87,7 @@ void drukuj_kosz() {
                    sklep->kosz.produkty[i].ilosc);
         }
     }
-    sem_post(sem_id, SEM_BASKET_MUTEX);
+    //sem_post(sem_id, SEM_BASKET_MUTEX);
 }
 
 // Wysłanie komunikatu o decyzji zamknięcia sklepu do wszystkich procesów
@@ -161,14 +161,15 @@ void cleanup_handler(int signum){
 // Obsługa sygnału ewakuacji
 void evacuation_handler(int signum) {
     printf("Kierownik: Rozpoczynam ewakuację sklepu...\n");
-
-    while (1) {
-        sem_wait(sem_id, SEM_MUTEX_CUSTOMERS);
+    
+    sem_wait(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
+    while (sklep->ilosc_klientow == 0) {
+        sem_wait(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
         if (sklep->ilosc_klientow == 0) {
-            sem_post(sem_id, SEM_MUTEX_CUSTOMERS);
+            sem_post(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
             break;
         }
-        sem_post(sem_id, SEM_MUTEX_CUSTOMERS);
+        sem_post(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
         sleep(1);
     }
 
@@ -199,7 +200,7 @@ int main(){
 
 
     // losowanie czy będzie ewakuacja i wysłanie sygnału do ewakuacji
-    int czy_bedzie_ewakuacja = rand() % 5 + 1;
+    int czy_bedzie_ewakuacja = 1;
     if (czy_bedzie_ewakuacja == 1)
     {
         sleep(rand() % CZAS_PRACY + 10);

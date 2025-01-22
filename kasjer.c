@@ -25,9 +25,9 @@ void evacuation_handler(int signum) {
 void monitoruj_kasy(Sklep *sklep, int sem_id) {
 
     while (!sklep->sklep_zamkniety) {
-        sem_wait(sem_id, SEM_MUTEX_CUSTOMERS);
+        sem_wait(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
         int ilosc_klientow = sklep->ilosc_klientow;
-        sem_post(sem_id, SEM_MUTEX_CUSTOMERS);
+        sem_post(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
 
         sem_wait(sem_id, SEM_CASHIER_MUTEX + 2);
         if (ilosc_klientow < 10) {

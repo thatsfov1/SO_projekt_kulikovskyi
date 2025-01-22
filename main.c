@@ -54,10 +54,10 @@ int main() {
     initialize_shm_sklep(&shm_id, &sklep, SKLEP_KEY);
 
     // Tworzenie semaforów
-    init_semaphores(&sem_id, SEM_KEY, 21);
+    init_semaphores(&sem_id, SEM_KEY, 22);
 
     // Inicjalizacja semaforów
-    init_semaphore_values(sem_id, 21);
+    init_semaphore_values(sem_id, 22);
 
     // Inicjalizacja struktury sklepu
     sklep->ilosc_klientow = 0;
