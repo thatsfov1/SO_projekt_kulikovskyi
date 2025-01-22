@@ -200,7 +200,7 @@ int main(){
     
     wait_for_acknowledgments();
     // losowanie czy będzie inwentaryzacja po zamknięciu sklepu
-    int czy_bedzie_inwentaryzacja = rand() % 5 + 1;
+    int czy_bedzie_inwentaryzacja = 1;
         if (czy_bedzie_inwentaryzacja == 1)
         {
             printf(BLUE "Kierownik: w dniu dzisiejszym przeprowadzimy inwentaryzację.\n" RESET);

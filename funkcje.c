@@ -31,7 +31,7 @@ void sem_post(int sem_id, int sem_num) {
 
 // Inicjalizacja pamięci współdzielonej dla sklepu
 void initialize_shm_sklep(int *shm_id, Sklep **sklep, int key) {
-    *shm_id = shmget(key, sizeof(Sklep), IPC_CREAT | 0666);
+    *shm_id = shmget(key, sizeof(Sklep), IPC_CREAT | 0600);
     if (*shm_id < 0) {
         perror("shmget");
         exit(1);
@@ -46,7 +46,7 @@ void initialize_shm_sklep(int *shm_id, Sklep **sklep, int key) {
 
 // Tworzenie semaforów
 void initialize_semaphores(int *sem_id, int key, int num_semaphores) {
-    *sem_id = semget(key, num_semaphores, IPC_CREAT | 0666);
+    *sem_id = semget(key, num_semaphores, IPC_CREAT | 0600);
     if (*sem_id == -1) {
         perror("semget");
         exit(1);
@@ -55,7 +55,7 @@ void initialize_semaphores(int *sem_id, int key, int num_semaphores) {
 
 // Inicjalizacja kolejki komunikatów
 void initialize_message_queue(int *msqid, int key) {
-    *msqid = msgget(key, 0666 | IPC_CREAT);
+    *msqid = msgget(key, 0600 | IPC_CREAT);
     if (*msqid == -1) {
         perror("msgget");
         exit(1);
