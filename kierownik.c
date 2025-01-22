@@ -18,6 +18,7 @@ int msqid;
 
 // Wydrukowanie stanu podajników
 void drukuj_stan_podajnikow() {
+    sem_wait(sem_id, SEM_STATS_MUTEX);
     printf("Kierownik: Na podajnikach zostało: ");
     for (int i = 0; i < MAX_PRODUKTOW; i++) {
         if (sklep->podajniki[i].produkt.ilosc > 0) {
@@ -26,20 +27,24 @@ void drukuj_stan_podajnikow() {
         }
     }
     printf("\n");
+    sem_post(sem_id, SEM_STATS_MUTEX);
 }
 
 // Wydrukowanie ilosci wyprodukowanych produktów przez piekarza
 void drukuj_statystyki_piekarza() {
+    sem_wait(sem_id, SEM_STATS_MUTEX);
     printf("Piekarz: Wyprodukował ");
     for (int i = 0; i < MAX_PRODUKTOW; i++) {
         drukuj_produkt(sklep->podajniki[i].produkt.nazwa, 
                       sklep->statystyki_piekarza.wyprodukowane[i]);
     }
     printf("\n");
+    sem_post(sem_id, SEM_STATS_MUTEX);
 }
 
 // Wydrukowanie sprzedaży przez kazdego kasjera (ile kazdego produktu sprzedano)
 void drukuj_sprzedaz_kasjera(int kasjer_id) {
+    sem_wait(sem_id, SEM_STATS_MUTEX);
     printf("Kasa %d: ", kasjer_id + 1);
     
     int sprzedal_cos = 0;
@@ -58,6 +63,7 @@ void drukuj_sprzedaz_kasjera(int kasjer_id) {
         printf("brak sprzedanych produktów przez kasę");
     }
     printf("\n");
+    sem_post(sem_id, SEM_STATS_MUTEX);
 }
 
 // Wydrukowanie stanu inwentaryzacji (razem podajniki, piekarz, kasy)
@@ -72,24 +78,26 @@ void drukuj_inwentaryzacje()
 }
 
 // Wydrukowanie stanu kosza (do którego trafiają produkty podczas ewakuacji)
-void drukuj_kosz()
-{
+void drukuj_kosz() {
+    sem_wait(sem_id, SEM_BASKET_MUTEX);
     printf("Kierownik: Stan kosza po zamknięciu sklepu:\n");
-    for (int i = 0; i < MAX_PRODUKTOW; i++)
-    {
-        if (sklep->kosz.produkty[i].ilosc > 0)
-        {
-            printf("%s %d szt.\n", sklep->kosz.produkty[i].nazwa, sklep->kosz.produkty[i].ilosc);
+    for (int i = 0; i < MAX_PRODUKTOW; i++) {
+        if (sklep->kosz.produkty[i].ilosc > 0) {
+            printf("%s %d szt.\n", sklep->kosz.produkty[i].nazwa, 
+                   sklep->kosz.produkty[i].ilosc);
         }
     }
+    sem_post(sem_id, SEM_BASKET_MUTEX);
 }
 
 // Wysłanie komunikatu o decyzji zamknięcia sklepu do wszystkich procesów
 void send_close_message()
 {
-    sem_wait(sem_id, SEM_CLOSE);
+    sem_wait(sem_id, SEM_STORE_CLOSE);
+    sem_wait(sem_id, SEM_MUTEX_STORE);
 
     sklep->sklep_zamkniety = 1;
+    sem_post(sem_id, SEM_MUTEX_STORE);
 
     key_t keys[5] = {
         ftok("/tmp", msq_kasa1),         
@@ -112,18 +120,16 @@ void send_close_message()
             exit(1);
         }
     }
-    sem_post(sem_id, SEM_CLOSE);
+    sem_post(sem_id, SEM_STORE_CLOSE);
 
     printf(BLUE "Kierownik: Wkrótce sklep zamyka się, wszyscy klienci stojący w kolejce do kas będą obsłużeni \n");
 }
 
 // Oczekiwanie na potwierdzenia gotowości na zamknięcie od wszystkich procesów
-void wait_for_acknowledgments()
-{
+void wait_for_acknowledgments(){
     message_buf rbuf;
     int ack_count = 0;
-    while (ack_count < 5)
-    {
+    while (ack_count < 5){
         if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), 0, 0) != -1)
         {
             if (strcmp(rbuf.mtext, acknowledgment_to_kierownik) == 0)
@@ -153,20 +159,26 @@ void cleanup_handler(int signum){
 }
 
 // Obsługa sygnału ewakuacji
-void evacuation_handler(int signum){
+void evacuation_handler(int signum) {
     printf("Kierownik: Rozpoczynam ewakuację sklepu...\n");
 
-    while (sklep->ilosc_klientow > 0){
+    while (1) {
+        sem_wait(sem_id, SEM_MUTEX_CUSTOMERS);
+        if (sklep->ilosc_klientow == 0) {
+            sem_post(sem_id, SEM_MUTEX_CUSTOMERS);
+            break;
+        }
+        sem_post(sem_id, SEM_MUTEX_CUSTOMERS);
         sleep(1);
     }
 
     cleanup_handler(signum);
 }
 
-void inventory_handler(int signum){
-    sem_wait(sem_id, SEM_SKLEP);
+void inventory_handler(int signum) {
+    sem_wait(sem_id, SEM_MUTEX_STORE);
     sklep->inwentaryzacja = 1;
-    sem_post(sem_id, SEM_SKLEP);
+    sem_post(sem_id, SEM_MUTEX_STORE);
 }
 
 int main(){

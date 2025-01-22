@@ -19,30 +19,26 @@ int klient_index;
 int msqid_klient;
 
 // Funkcja czyszcząca
-void cleanup_handler()
-{
+void cleanup_handler(){
     exit(0);
 }
 
 // Obsługa sygnału ewakuacji
-void evacuation_handler(int signum)
-{
-    printf("Klient %d: Ewakuacja!, odkładam produkty do kosza i wychodzę.\n", getpid());
+void evacuation_handler(int signum){
+    printf("Klient %d: Ewakuacja!, Opuszczam sklep.\n", getpid());
 
     // Odkładanie produktów do kosza
-    for (int i = 0; i < sklep->klienci[klient_index].ilosc_zakupow; i++)
-    {
-        int produkt_id = sklep->klienci[klient_index].lista_zakupow[i].id;
-        sem_wait(sem_id, produkt_id);
-        sklep->kosz.produkty[produkt_id].ilosc += sklep->klienci[klient_index].lista_zakupow[i].ilosc;
-        strcpy(sklep->kosz.produkty[produkt_id].nazwa, sklep->klienci[klient_index].lista_zakupow[i].nazwa);
-        sem_post(sem_id, produkt_id);
+    sem_wait(sem_id, SEM_BASKET_MUTEX);
+    for (int i = 0; i < sklep->klienci[klient_index].ilosc_zakupow; i++){
+        int prod_id = sklep->klienci[klient_index].lista_zakupow[i].id;
+        sklep->kosz.produkty[prod_id].ilosc += sklep->klienci[klient_index].lista_zakupow[i].ilosc;
+        printf("Klient %d: Odkładłem produkty do kosza.\n", getpid());
     }
-
+    sem_post(sem_id, SEM_BASKET_MUTEX);
     // klient opuszcza sklep po odłożeniu produktów do kosza
-    sem_wait(sem_id, SEM_KLIENCI);
+    sem_wait(sem_id, SEM_MUTEX_CUSTOMERS);
     sklep->ilosc_klientow--;
-    sem_post(sem_id, SEM_KLIENCI);
+    sem_post(sem_id, SEM_MUTEX_CUSTOMERS);
 
     cleanup_handler();
 }
@@ -52,20 +48,18 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     signal(SIGUSR1, evacuation_handler);
 
     message_buf kierownik_rbuf;
+    klient_index = klient_id % MAX_KLIENTOW;
 
     // Czekanie na wejście do sklepu, jeśli sklep jest pełny to czeka przed wejściem 1s i probuje ponownie
     while (1) {
-        sem_wait(sem_id, SEM_KLIENCI);
+        sem_wait(sem_id, SEM_MUTEX_CUSTOMERS);
         if (sklep->ilosc_klientow < MAX_KLIENTOW) {
-            klient_index = sklep->ilosc_klientow;
             sklep->ilosc_klientow++;
-            sem_post(sem_id, SEM_KLIENCI);
+            sem_post(sem_id, SEM_MUTEX_CUSTOMERS);
             break;
-        } else {
-            sem_post(sem_id, SEM_KLIENCI);
-            printf("Klient %d: Sklep jest pełny, czekam przed wejściem...\n", klient_id);
-            sleep(1);
         }
+        sem_post(sem_id, SEM_MUTEX_CUSTOMERS);
+        //sleep(1);
     }
 
     // Losowanie listy zakupów klienta
@@ -73,9 +67,9 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     int liczba_produktow = 0;
 
     // Czyszczenie struktury klienta
-    sem_wait(sem_id, SEM_KLIENCI);
+    sem_wait(sem_id, SEM_MUTEX_CUSTOMERS);
     memset(&sklep->klienci[klient_index], 0, sizeof(Klient));
-    sem_post(sem_id, SEM_KLIENCI);
+    sem_post(sem_id, SEM_MUTEX_CUSTOMERS);
 
     losuj_liste_zakupow(sklep, lista_zakupow, &liczba_produktow);
 
@@ -89,59 +83,65 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     // Pobieranie produktów z podajników, ile jest dostępne
     for (int i = 0; i < liczba_produktow; i++) {
         if (lista_zakupow[i].ilosc > 0) {
-            int produkt_id = lista_zakupow[i].id; 
-            sem_wait(sem_id, produkt_id); 
-            int dostepne = sklep->podajniki[produkt_id].produkt.ilosc;
-            int zadane = lista_zakupow[i].ilosc;
-            int pobrane = (dostepne >= zadane) ? zadane : dostepne;
+            int prod_id = lista_zakupow[i].id;
+            sem_wait(sem_id, SEM_DISPENSER + prod_id); 
+
+            int dostepne = sklep->podajniki[prod_id].produkt.ilosc;
+            int do_wziecia = (lista_zakupow[i].ilosc <= dostepne) ? 
+                         lista_zakupow[i].ilosc : dostepne;
             
-            sklep->podajniki[produkt_id].produkt.ilosc -= pobrane;
-            lista_zakupow[i].ilosc = pobrane;
-            
+            sklep->podajniki[prod_id].produkt.ilosc -= do_wziecia;
+            lista_zakupow[i].ilosc = do_wziecia;
+        
             printf("Klient %d: Biorę %d szt. %s\n", 
-                   klient_id, pobrane, lista_zakupow[i].nazwa);
+                   klient_id, do_wziecia, lista_zakupow[i].nazwa);
             
-            sem_post(sem_id, produkt_id);
+            sem_post(sem_id, SEM_DISPENSER + prod_id);
         }
     }
 
     // Zapisanie zaktualizowanej listy do struktury klienta
-    sem_wait(sem_id, SEM_KLIENCI);
+    sem_wait(sem_id, SEM_MUTEX_CUSTOMERS);
     sklep->klienci[klient_index].klient_id = klient_id;
     memcpy(sklep->klienci[klient_index].lista_zakupow, lista_zakupow, sizeof(lista_zakupow));
     sklep->klienci[klient_index].ilosc_zakupow = liczba_produktow;
-    sem_post(sem_id, SEM_KLIENCI);
+    sem_post(sem_id, SEM_MUTEX_CUSTOMERS);
 
     // Sprawdzenie, czy sklep jest zamknięty, jeśli tak to zwrócenie produktów do podajników i wyjście
+    sem_wait(sem_id, SEM_MUTEX_STORE);
     if (sklep->sklep_zamkniety) {
-            printf("Klient %d: Sklep zamknięty, zwracam produkty do podajników i wychodzę\n", klient_id);
+        sem_wait(sem_id, SEM_STATS_MUTEX);
             for (int i = 0; i < liczba_produktow; i++) {
-                int produkt_id = lista_zakupow[i].id;
-                sem_wait(sem_id, produkt_id);
-                sklep->podajniki[produkt_id].produkt.ilosc += lista_zakupow[i].ilosc;
-                sem_post(sem_id, produkt_id);
+                int prod_id = lista_zakupow[i].id;
+                sem_wait(sem_id, SEM_DISPENSER + prod_id);
+                sklep->podajniki[prod_id].produkt.ilosc += lista_zakupow[i].ilosc;
+                sem_post(sem_id, SEM_DISPENSER + prod_id);
             }
-            sem_wait(sem_id, SEM_KLIENCI);
-            sklep->klienci[klient_index].klient_id = 0;
+            
+            sem_wait(sem_id, SEM_MUTEX_CUSTOMERS);
             sklep->ilosc_klientow--;
-            sem_post(sem_id, SEM_KLIENCI);
+            sem_post(sem_id, SEM_MUTEX_CUSTOMERS);
+            sem_post(sem_id, SEM_STATS_MUTEX);
+            sem_post(sem_id, SEM_MUTEX_STORE);
+            printf("Klient %d: Sklep zamknięty, zwracam produkty do podajników i wychodzę\n", klient_id);
             cleanup_handler();
-        }
+    } else {
+        sem_post(sem_id, SEM_MUTEX_STORE);
+    }
 
     // Znalezienie kasy z najmniejszą kolejką
     int kasa_id;
     while ((kasa_id = znajdz_kase_z_najmniejsza_kolejka(sklep, sem_id)) == -1) {
         printf("Klient %d: Wszystkie kasy są zamknięte, czekam...\n", klient_id);
-        sleep(1);
+        //sleep(1);
     }
 
     // Klient ustawia się w kolejce do tej kasy
-    sem_wait(sem_id, 13 + kasa_id);
+    sem_wait(sem_id, SEM_QUEUE_MUTEX);
     sklep->kasjerzy[kasa_id].kolejka_klientow[sklep->kasjerzy[kasa_id].tail] = klient_index;
     sklep->kasjerzy[kasa_id].tail = (sklep->kasjerzy[kasa_id].tail + 1) % MAX_KLIENTOW;
     sklep->kasjerzy[kasa_id].ilosc_klientow++;
-    sem_post(sem_id, 13 + kasa_id);
-    
+    sem_post(sem_id, SEM_QUEUE_MUTEX);
 
     printf("Klient %d: Ustawiam się w kolejce do kasy %d\n", klient_id, kasa_id + 1);
 
@@ -151,16 +151,14 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     initialize_message_queue(&msqid_kasy, key);
     
     message_buf rbuf;
-    if (msgrcv(msqid_kasy, &rbuf, sizeof(rbuf.mtext), getpid(), 0) != -1) {
+    if (msgrcv(msqid_kasy, &rbuf, sizeof(rbuf.mtext), klient_id, 0) != -1) {
         printf("Klient %d: Byłem obsłużony, mogę opuścić sklep\n", klient_id);
-    } else {
-            exit(1);
     }
     
     // Klient opuszcza sklep po zakupach
-    sem_wait(sem_id, SEM_KLIENCI);
+    sem_wait(sem_id, SEM_MUTEX_CUSTOMERS);
     sklep->ilosc_klientow--;
-    sem_post(sem_id, SEM_KLIENCI);
+    sem_post(sem_id, SEM_MUTEX_CUSTOMERS);
     printf("Klient %d: Opuszczam sklep\n", klient_id);
 }
 
@@ -195,7 +193,7 @@ int main() {
                 zakupy(sklep, sem_id, getpid(), msqid_klient);
                 exit(0);
             } else if (pid > 0) { 
-                sleep(rand() % 3 + 1);
+                //sleep(rand() % 3 + 1);
             } else {
                 perror("fork");
                 exit(1);

@@ -15,31 +15,25 @@ Sklep *sklep;
 int msqid;
 
 // funkcja czyszcząca
-void cleanup_handler(int signum)
-{
+void cleanup_handler(int signum){
     exit(0);
 }
 
 // obsługa sygnału ewakuacji
-void evacuation_handler(int signum)
-{
+void evacuation_handler(int signum){
     printf("Piekarz: Ewakuacja!, kończę pracę.\n");
     cleanup_handler(SIGUSR1);
 }
 
 // piekarz kazde 5 sekund wypieka losową ilość produktów i próbuje dodać do podajników
-void wypiekaj_produkty(Sklep *sklep, int sem_id)
-{
+void wypiekaj_produkty(Sklep *sklep, int sem_id){
     srand(time(NULL));
     message_buf rbuf;
 
-    while (1)
-    {
+    while (1){
         // sprawdza, czy otrzymano komunikat o zamknięciu sklepu, jesli tak to kończy pracę i wysyła potwierdzenie do kierownika
-        if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1)
-        {
-            if (strcmp(rbuf.mtext, close_store_message) == 0)
-            {
+        if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1){
+            if (strcmp(rbuf.mtext, close_store_message) == 0){
                 printf("Piekarz: Otrzymałem komunikat o zamknięciu sklepu, kończę pracę.\n");
                 send_acknowledgment_to_kierownik();
                 break;
@@ -47,43 +41,45 @@ void wypiekaj_produkty(Sklep *sklep, int sem_id)
         }
 
         printf("=============================\n");
-        for (int i = 0; i < MAX_PRODUKTOW; i++)
-        {
-
+        for (int i = 0; i < MAX_PRODUKTOW; i++){
             int ilosc_wypiekow = rand() % 5 + 1;
             
-            printf("Piekarz: Wypiekłem %d sztuk produktu %s, próbuję dodać do podajnika.\n", ilosc_wypiekow, sklep->podajniki[i].produkt.nazwa);
-            sem_wait(sem_id, i);
+            printf("Piekarz: Wypiekłem %d sztuk produktu %s, próbuję dodać do podajnika.\n",
+                    ilosc_wypiekow, sklep->podajniki[i].produkt.nazwa);
+            
+            sem_wait(sem_id, SEM_DISPENSER + i);
             // sprawdza, czy podajnik nie jest pełny, jeśli nie to dodaje produkty
-            if (sklep->podajniki[i].produkt.ilosc < MAX_PRODUKTOW_W_PODAJNIKU)
-            {
+            if (sklep->podajniki[i].produkt.ilosc < MAX_PRODUKTOW_W_PODAJNIKU){
                 int wolne_miejsce = MAX_PRODUKTOW_W_PODAJNIKU - sklep->podajniki[i].produkt.ilosc;
                 int do_dodania = (ilosc_wypiekow <= wolne_miejsce) ? ilosc_wypiekow : wolne_miejsce;
 
+                sem_wait(sem_id, SEM_STATS_MUTEX);
                 sklep->podajniki[i].produkt.ilosc += do_dodania;
                 sklep->statystyki_piekarza.wyprodukowane[i] += do_dodania;
-                printf("Piekarz: Dodałem %d sztuk %s do podajnika.\n", do_dodania, sklep->podajniki[i].produkt.nazwa);
+                sem_post(sem_id, SEM_STATS_MUTEX);
 
-                if (ilosc_wypiekow > do_dodania)
-                {
-                    printf("Piekarz: Nie dodałem %d sztuk %s do podajnika, bo jest pełny.\n", ilosc_wypiekow - do_dodania, sklep->podajniki[i].produkt.nazwa);
+                printf("Piekarz: Dodałem %d sztuk %s do podajnika.\n", 
+                        do_dodania, sklep->podajniki[i].produkt.nazwa);
+
+                if (ilosc_wypiekow > do_dodania){
+                    printf("Piekarz: Nie dodałem %d sztuk %s do podajnika, bo jest pełny.\n", 
+                            ilosc_wypiekow - do_dodania, sklep->podajniki[i].produkt.nazwa);
                 }
             }
-            else
-            {
-                printf("Piekarz: Podajnik %s pełny, nie mogę dodać produktów.\n", sklep->podajniki[i].produkt.nazwa);
+            else{
+                printf("Piekarz: Podajnik %s pełny, nie mogę dodać produktów.\n", 
+                        sklep->podajniki[i].produkt.nazwa);
             }
 
-            sem_post(sem_id, i);
+            sem_post(sem_id, SEM_DISPENSER + i);
         }
         printf("=============================\n");
 
-        sleep(5);
+        //sleep(5);
     }
 }
 
-int main()
-{
+int main(){
     setup_signal_handlers(cleanup_handler, evacuation_handler);
 
     initialize_shm_sklep(&shm_id, &sklep, SKLEP_KEY);

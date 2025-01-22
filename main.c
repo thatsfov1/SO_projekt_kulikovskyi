@@ -48,17 +48,16 @@ void evacuation_handler(int signum) {
 
 int main() {
     setup_signal_handlers(cleanup, evacuation_handler);
-
+    signal(SIGUSR2, cleanup);
     // Tworzenie pamięci współdzielonej dla sklepu
+
     initialize_shm_sklep(&shm_id, &sklep, SKLEP_KEY);
 
     // Tworzenie semaforów
-    initialize_semaphores(&sem_id, SEM_KEY, 17);
+    init_semaphores(&sem_id, SEM_KEY, 21);
 
     // Inicjalizacja semaforów
-    for (int i = 0; i < 17; i++) {
-        semctl(sem_id, i, SETVAL, 1);
-    }
+    init_semaphore_values(sem_id, 21);
 
     // Inicjalizacja struktury sklepu
     sklep->ilosc_klientow = 0;
