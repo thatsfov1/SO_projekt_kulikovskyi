@@ -163,8 +163,15 @@ void evacuation_handler(int signum){
     cleanup_handler(signum);
 }
 
+void inventory_handler(int signum){
+    sem_wait(sem_id, SEM_SKLEP);
+    sklep->inwentaryzacja = 1;
+    sem_post(sem_id, SEM_SKLEP);
+}
+
 int main(){
     setup_signal_handlers(cleanup_handler, evacuation_handler);
+    signal(SIGUSR2, inventory_handler);
     srand(time(NULL));
 
     key_t key = ftok("/tmp", msq_kierownik);
@@ -200,16 +207,17 @@ int main(){
     
     wait_for_acknowledgments();
     // losowanie czy będzie inwentaryzacja po zamknięciu sklepu
-    int czy_bedzie_inwentaryzacja = 1;
-        if (czy_bedzie_inwentaryzacja == 1)
-        {
-            printf(BLUE "Kierownik: w dniu dzisiejszym przeprowadzimy inwentaryzację.\n" RESET);
-            sklep->inwentaryzacja = 1;
-        }
-        else
-        {
-            printf(BLUE "Kierownik: Dzisiaj nie będziemy przeprowadzać inwentaryzacji.\n" RESET);
+    int czy_bedzie_inwentaryzacja = 1; 
+    if (czy_bedzie_inwentaryzacja == 1) {
+    printf(BLUE "Kierownik: w dniu dzisiejszym przeprowadzimy inwentaryzację.\n" RESET);
+    if (kill(0, SIGUSR2) == 0) {
+        printf("Kierownik: Sygnał SIGUSR2 wysłany.\n");
+    } else {
+        perror("Kierownik: Błąd wysyłania sygnału SIGUSR2");
     }
+} else {
+    printf(BLUE "Kierownik: Dzisiaj nie będziemy przeprowadzać inwentaryzacji.\n" RESET);
+}
 
     cleanup_handler(0);
     return 0;
