@@ -10,11 +10,11 @@
 #include "struktury.h"
 #include "funkcje.h"
 
+// zmienne procedur
 Sklep *sklep;
 int shm_id;
 int sem_id;
 int msqid;
-
 
 // Wydrukowanie stanu podajników
 void drukuj_stan_podajnikow() {

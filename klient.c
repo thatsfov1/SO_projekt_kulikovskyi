@@ -40,9 +40,9 @@ void evacuation_handler(int signum)
     }
 
     // klient opuszcza sklep po odłożeniu produktów do kosza
-    sem_wait(sem_id, SEM_SKLEP);
+    sem_wait(sem_id, SEM_KLIENCI);
     sklep->ilosc_klientow--;
-    sem_post(sem_id, SEM_SKLEP);
+    sem_post(sem_id, SEM_KLIENCI);
 
     cleanup_handler();
 }
@@ -55,14 +55,14 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
 
     // Czekanie na wejście do sklepu, jeśli sklep jest pełny to czeka przed wejściem 1s i probuje ponownie
     while (1) {
-        sem_wait(sem_id, SEM_SKLEP);
+        sem_wait(sem_id, SEM_KLIENCI);
         if (sklep->ilosc_klientow < MAX_KLIENTOW) {
             klient_index = sklep->ilosc_klientow;
             sklep->ilosc_klientow++;
-            sem_post(sem_id, SEM_SKLEP);
+            sem_post(sem_id, SEM_KLIENCI);
             break;
         } else {
-            sem_post(sem_id, SEM_SKLEP);
+            sem_post(sem_id, SEM_KLIENCI);
             printf("Klient %d: Sklep jest pełny, czekam przed wejściem...\n", klient_id);
             sleep(1);
         }
@@ -73,9 +73,9 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     int liczba_produktow = 0;
 
     // Czyszczenie struktury klienta
-    sem_wait(sem_id, SEM_SKLEP);
+    sem_wait(sem_id, SEM_KLIENCI);
     memset(&sklep->klienci[klient_index], 0, sizeof(Klient));
-    sem_post(sem_id, SEM_SKLEP);
+    sem_post(sem_id, SEM_KLIENCI);
 
     losuj_liste_zakupow(sklep, lista_zakupow, &liczba_produktow);
 
@@ -91,7 +91,6 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
         if (lista_zakupow[i].ilosc > 0) {
             int produkt_id = lista_zakupow[i].id; 
             sem_wait(sem_id, produkt_id); 
-            
             int dostepne = sklep->podajniki[produkt_id].produkt.ilosc;
             int zadane = lista_zakupow[i].ilosc;
             int pobrane = (dostepne >= zadane) ? zadane : dostepne;
@@ -107,11 +106,11 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     }
 
     // Zapisanie zaktualizowanej listy do struktury klienta
-    sem_wait(sem_id, SEM_SKLEP);
+    sem_wait(sem_id, SEM_KLIENCI);
     sklep->klienci[klient_index].klient_id = klient_id;
     memcpy(sklep->klienci[klient_index].lista_zakupow, lista_zakupow, sizeof(lista_zakupow));
     sklep->klienci[klient_index].ilosc_zakupow = liczba_produktow;
-    sem_post(sem_id, SEM_SKLEP);
+    sem_post(sem_id, SEM_KLIENCI);
 
     // Sprawdzenie, czy sklep jest zamknięty, jeśli tak to zwrócenie produktów do podajników i wyjście
     if (sklep->sklep_zamkniety) {
@@ -122,10 +121,10 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
                 sklep->podajniki[produkt_id].produkt.ilosc += lista_zakupow[i].ilosc;
                 sem_post(sem_id, produkt_id);
             }
-            sem_wait(sem_id, SEM_SKLEP);
+            sem_wait(sem_id, SEM_KLIENCI);
             sklep->klienci[klient_index].klient_id = 0;
             sklep->ilosc_klientow--;
-            sem_post(sem_id, SEM_SKLEP);
+            sem_post(sem_id, SEM_KLIENCI);
             cleanup_handler();
         }
 
@@ -142,7 +141,7 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     sklep->kasjerzy[kasa_id].tail = (sklep->kasjerzy[kasa_id].tail + 1) % MAX_KLIENTOW;
     sklep->kasjerzy[kasa_id].ilosc_klientow++;
     sem_post(sem_id, 13 + kasa_id);
- 
+    
 
     printf("Klient %d: Ustawiam się w kolejce do kasy %d\n", klient_id, kasa_id + 1);
 
@@ -159,9 +158,9 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     }
     
     // Klient opuszcza sklep po zakupach
-    sem_wait(sem_id, SEM_SKLEP);
+    sem_wait(sem_id, SEM_KLIENCI);
     sklep->ilosc_klientow--;
-    sem_post(sem_id, SEM_SKLEP);
+    sem_post(sem_id, SEM_KLIENCI);
     printf("Klient %d: Opuszczam sklep\n", klient_id);
 }
 

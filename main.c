@@ -21,7 +21,7 @@ Kosz *kosz;
 void cleanup(int signum) {
 
     while(wait(NULL) > 0);
-    sleep(1);
+    //sleep(1);
     printf(RED "\nZamykanie sklepu...\n" RESET);
 
     // Czyszczenie zasobów

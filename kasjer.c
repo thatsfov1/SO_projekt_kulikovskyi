@@ -31,9 +31,9 @@ void monitoruj_kasy(Sklep *sklep, int sem_id)
 {
     while (!sklep->sklep_zamkniety)
     {
-        sem_wait(sem_id, SEM_SKLEP);
+        sem_wait(sem_id, SEM_KLIENCI);
         int ilosc_klientow = sklep->ilosc_klientow;
-        sem_post(sem_id, SEM_SKLEP);
+        sem_post(sem_id, SEM_KLIENCI);
 
         // Zarządzanie kasami
         if (ilosc_klientow <= 10)
@@ -96,6 +96,7 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
                 kasa_zamknieta=1;
             }
         }
+        
         sem_wait(sem_id, 13 + kasa_id);
         int kolejka_pusta = (sklep->kasjerzy[kasa_id].head == sklep->kasjerzy[kasa_id].tail);
 
@@ -138,6 +139,7 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
             }
         }
         sem_post(sem_id, 13 + kasa_id);
+       
 
         usleep(100000);
     }

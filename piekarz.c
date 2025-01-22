@@ -49,12 +49,11 @@ void wypiekaj_produkty(Sklep *sklep, int sem_id)
         printf("=============================\n");
         for (int i = 0; i < MAX_PRODUKTOW; i++)
         {
-            sem_wait(sem_id, i);
 
             int ilosc_wypiekow = rand() % 5 + 1;
             
             printf("Piekarz: Wypiekłem %d sztuk produktu %s, próbuję dodać do podajnika.\n", ilosc_wypiekow, sklep->podajniki[i].produkt.nazwa);
-
+            sem_wait(sem_id, i);
             // sprawdza, czy podajnik nie jest pełny, jeśli nie to dodaje produkty
             if (sklep->podajniki[i].produkt.ilosc < MAX_PRODUKTOW_W_PODAJNIKU)
             {
