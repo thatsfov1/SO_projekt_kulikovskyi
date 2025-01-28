@@ -163,15 +163,12 @@ void evacuation_handler(int signum) {
     printf("Kierownik: Rozpoczynam ewakuację sklepu...\n");
 
     sem_wait(sem_id, SEM_EVACUATION_MUTEX);
-    //sem_wait(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
+
     while (1) {
-        //sem_wait(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
         if (sklep->ilosc_klientow == 0) {
-            //sem_post(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
             break;
         }
-        //sem_post(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
-        //sleep(1);
+        sleep(1);
     }
     sem_post(sem_id, SEM_EVACUATION_MUTEX);
     cleanup_handler(signum);
@@ -201,7 +198,7 @@ int main(){
 
 
     // losowanie czy będzie ewakuacja i wysłanie sygnału do ewakuacji
-    int czy_bedzie_ewakuacja = 1;
+    int czy_bedzie_ewakuacja = rand() % 5 + 1;
     if (czy_bedzie_ewakuacja == 1)
     {
         sleep(rand() % CZAS_PRACY + 10);
@@ -221,7 +218,7 @@ int main(){
     
     wait_for_acknowledgments();
     // losowanie czy będzie inwentaryzacja po zamknięciu sklepu
-    int czy_bedzie_inwentaryzacja = 1; 
+    int czy_bedzie_inwentaryzacja = rand() % 5 + 1; 
     if (czy_bedzie_inwentaryzacja == 1) {
     printf(BLUE "Kierownik: w dniu dzisiejszym przeprowadzimy inwentaryzację.\n" RESET);
     if (kill(0, SIGUSR2) == 0) {

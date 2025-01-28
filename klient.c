@@ -64,7 +64,7 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     // Czekanie na wejście do sklepu, jeśli sklep jest pełny to czeka przed wejściem 1s i probuje ponownie
     while (1) {
         if (sklep->sklep_zamkniety || ewakuacja_w_trakcie) {
-            printf("Klient %d: Nie mogę wejść, sklep jest zamknięty lub trwa ewakuacja\n", klient_id);
+            printf("Klient %d: Nie mogę wejść, sklep jest zamknięty\n", klient_id);
             cleanup_handler();
             return;
         }
@@ -76,7 +76,7 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
             break;
         }
         sem_post(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
-        //sleep(1);
+        sleep(1);
     }
 
     // Losowanie listy zakupów klienta
@@ -153,7 +153,7 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     int kasa_id;
     while ((kasa_id = znajdz_kase_z_najmniejsza_kolejka(sklep, sem_id)) == -1) {
         printf("Klient %d: Wszystkie kasy są zamknięte, czekam...\n", klient_id);
-        //sleep(1);
+        sleep(1);
     }
 
     // Klient ustawia się w kolejce do tej kasy
@@ -227,7 +227,7 @@ int main() {
             zakupy(sklep, sem_id, getpid(), msqid_klient);
             exit(0);
         } else if (pid > 0) { 
-            //sleep(rand() % 3 + 1);
+            sleep(rand() % 3 + 1);
         } else {
             perror("fork");
             exit(1);

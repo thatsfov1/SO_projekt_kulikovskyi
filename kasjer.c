@@ -43,7 +43,7 @@ void monitoruj_kasy(Sklep *sklep, int sem_id) {
         }
         sem_post(sem_id, SEM_CASHIER_MUTEX + 2);
 
-        //sleep(1);
+        sleep(1);
     }
 }
 
@@ -56,10 +56,6 @@ int pobierz_id_klienta_z_kolejki(Sklep *sklep, int kasa_id) {
     }
     
     int klient_index = sklep->kasjerzy[kasa_id].kolejka_klientow[sklep->kasjerzy[kasa_id].head];
-    // if (sklep->klienci[klient_index].klient_id == 0) {
-    //     sem_post(sem_id, SEM_QUEUE_MUTEX);
-    //     return -1;
-    // }
     
 
     sklep->kasjerzy[kasa_id].head = (sklep->kasjerzy[kasa_id].head + 1) % MAX_KLIENTOW;
@@ -98,7 +94,7 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
                     }
                 }
 
-                //sleep(3);  // Symulacja obsługi klienta
+                sleep(3);  // Symulacja obsługi klienta
                 
                 printf("Kasa %d: Obsłużono klienta %d, suma zakupów: %.2f zł\n",
                        kasa_id + 1, sklep->klienci[klient_index].klient_id, suma);
@@ -118,7 +114,7 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
                 printf("Kasa %d: Zamykam się, brak klientów w kolejce.\n", kasa_id + 1);
                 break;
             }
-            //usleep(100000);
+            usleep(100000);
         }
     }
 
