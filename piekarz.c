@@ -73,7 +73,7 @@ void wypiekaj_produkty(Sklep *sklep, int sem_id){
         }
         printf("=============================\n");
 
-        sleep(5);
+        //sleep(5);
     }
 }
 

@@ -32,6 +32,8 @@ void evacuation_handler(int signum){
     if (!klient_w_sklepie) {
         cleanup_handler();
         return;
+    }else{
+        sem_post(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
     }
 
     // Odkładanie produktów do kosza
@@ -60,7 +62,7 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     klient_index = klient_id % MAX_KLIENTOW;
 
     // Czekanie na wejście do sklepu, jeśli sklep jest pełny to czeka przed wejściem 1s i probuje ponownie
-    while (1) {
+    while (!ewakuacja_w_trakcie) {
         sem_wait(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
         if (sklep->ilosc_klientow < MAX_KLIENTOW) {
             sklep->ilosc_klientow++;
@@ -69,7 +71,7 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
             break;
         }
         sem_post(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
-        sleep(1);
+        //sleep(1);
     }
 
     // Losowanie listy zakupów klienta
@@ -120,6 +122,8 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     // Sprawdzenie, czy sklep jest zamknięty, jeśli tak to zwrócenie produktów do podajników i wyjście
     sem_wait(sem_id, SEM_MUTEX_STORE);
     if (sklep->sklep_zamkniety) {
+        sem_post(sem_id, SEM_MUTEX_STORE);
+        
         sem_wait(sem_id, SEM_STATS_MUTEX);
             for (int i = 0; i < liczba_produktow; i++) {
                 int prod_id = lista_zakupow[i].id;
@@ -130,11 +134,14 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
             
             sem_wait(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
             sklep->ilosc_klientow--;
+            printf("Ilosc klientow: %d\n", sklep->ilosc_klientow);
             sem_post(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
             sem_post(sem_id, SEM_STATS_MUTEX);
             sem_post(sem_id, SEM_MUTEX_STORE);
             printf("Klient %d: Sklep zamknięty, zwracam produkty do podajników i wychodzę\n", klient_id);
+            
             cleanup_handler();
+            return;
     } else {
         sem_post(sem_id, SEM_MUTEX_STORE);
     }
@@ -143,7 +150,7 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     int kasa_id;
     while ((kasa_id = znajdz_kase_z_najmniejsza_kolejka(sklep, sem_id)) == -1) {
         printf("Klient %d: Wszystkie kasy są zamknięte, czekam...\n", klient_id);
-        sleep(1);
+        //sleep(1);
     }
 
     // Klient ustawia się w kolejce do tej kasy
@@ -191,7 +198,6 @@ int main() {
     
     while (1) {
         message_buf rbuf;
-
         
         if (msgrcv(msqid_klient, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1) {
             if (strcmp(rbuf.mtext, close_store_message) == 0) {
@@ -206,7 +212,7 @@ int main() {
                 zakupy(sklep, sem_id, getpid(), msqid_klient);
                 exit(0);
             } else if (pid > 0) { 
-                sleep(rand() % 3 + 1);
+                //sleep(rand() % 3 + 1);
             } else {
                 perror("fork");
                 exit(1);

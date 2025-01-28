@@ -171,7 +171,7 @@ void evacuation_handler(int signum) {
             break;
         }
         //sem_post(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
-        sleep(1);
+        //sleep(1);
     }
     sem_post(sem_id, SEM_EVACUATION_MUTEX);
     cleanup_handler(signum);
@@ -201,7 +201,7 @@ int main(){
 
 
     // losowanie czy będzie ewakuacja i wysłanie sygnału do ewakuacji
-    int czy_bedzie_ewakuacja = 2;
+    int czy_bedzie_ewakuacja = 1;
     if (czy_bedzie_ewakuacja == 1)
     {
         sleep(rand() % CZAS_PRACY + 10);

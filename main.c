@@ -20,12 +20,10 @@ Kosz *kosz;
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną i usuwa semafory oraz kolejki komunikatów
 void cleanup(int signum) {
 
-    
+    while(wait(NULL) > 0);
     //sleep(1);
     printf(RED "\nZamykanie sklepu...\n" RESET);
-
-    while(wait(NULL) > 0);
-
+    
     // Czyszczenie zasobów
     shmdt(sklep);
 
@@ -86,6 +84,7 @@ int main() {
     if (fork() == 0) {
         execl("./klient", "./klient", NULL);
     }
+
     while(wait(NULL) > 0);
 
     cleanup(0);
