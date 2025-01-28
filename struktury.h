@@ -7,6 +7,7 @@
 #define MAX_PRODUKTOW 12
 #define MAX_KLIENTOW 15
 #define MAX_KASJEROW 3
+#define PRAG_OTWARCIA_KASY3 10
 #define MAX_PRODUKTOW_W_PODAJNIKU 15
 #define CZAS_PRACY 15
 
@@ -30,6 +31,7 @@
 #define acknowledgment_to_kierownik "ACK"
 #define klient_rozliczony "OK"
 #define ready_to_close "READY_TO_CLOSE"
+#define last_customer_left "LAST_CUSTOMER_LEFT"
 
 // indeksy semaforów 
 #define SEM_MUTEX_CUSTOMERS 0 
@@ -41,6 +43,7 @@
 #define SEM_BASKET_MUTEX 19   
 #define SEM_STATS_MUTEX 20   
 #define SEM_MUTEX_CUSTOMERS_NUMBER 21   
+#define SEM_EVACUATION_MUTEX 22
 
 
 // Kolory
@@ -117,6 +120,7 @@ typedef struct
     Kosz kosz;
     StatystykiPiekarza statystyki_piekarza;
     int sklep_zamkniety;
+    int ewakuacja;
 } Sklep;
 
 #endif

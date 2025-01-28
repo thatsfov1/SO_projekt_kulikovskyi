@@ -31,13 +31,11 @@ void wypiekaj_produkty(Sklep *sklep, int sem_id){
     message_buf rbuf;
 
     while (1){
-        // sprawdza, czy otrzymano komunikat o zamknięciu sklepu, jesli tak to kończy pracę i wysyła potwierdzenie do kierownika
-        if (msgrcv(msqid, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1){
-            if (strcmp(rbuf.mtext, close_store_message) == 0){
-                printf("Piekarz: Otrzymałem komunikat o zamknięciu sklepu, kończę pracę.\n");
+        // sprawdza, czy sklep jest zamknięty
+        if (sklep->sklep_zamkniety){
+                printf("Piekarz: Sklep zamknięty, kończę pracę.\n");
                 send_acknowledgment_to_kierownik();
                 break;
-            }
         }
 
         printf("=============================\n");
@@ -75,7 +73,7 @@ void wypiekaj_produkty(Sklep *sklep, int sem_id){
         }
         printf("=============================\n");
 
-        //sleep(5);
+        sleep(5);
     }
 }
 

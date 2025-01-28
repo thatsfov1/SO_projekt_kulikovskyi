@@ -46,6 +46,7 @@ void evacuation_handler(int signum){
     // klient opuszcza sklep po odłożeniu produktów do kosza
     sem_wait(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
     sklep->ilosc_klientow--;
+    printf("Ilosc klientow: %d\n", sklep->ilosc_klientow);
     sem_post(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
 
     cleanup_handler();
@@ -68,7 +69,7 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
             break;
         }
         sem_post(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
-        //sleep(1);
+        sleep(1);
     }
 
     // Losowanie listy zakupów klienta
@@ -142,7 +143,7 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     int kasa_id;
     while ((kasa_id = znajdz_kase_z_najmniejsza_kolejka(sklep, sem_id)) == -1) {
         printf("Klient %d: Wszystkie kasy są zamknięte, czekam...\n", klient_id);
-        //sleep(1);
+        sleep(1);
     }
 
     // Klient ustawia się w kolejce do tej kasy
@@ -205,7 +206,7 @@ int main() {
                 zakupy(sklep, sem_id, getpid(), msqid_klient);
                 exit(0);
             } else if (pid > 0) { 
-                //sleep(rand() % 3 + 1);
+                sleep(rand() % 3 + 1);
             } else {
                 perror("fork");
                 exit(1);

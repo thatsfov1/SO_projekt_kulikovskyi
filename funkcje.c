@@ -121,6 +121,15 @@ void drukuj_produkt(const char* nazwa, int ilosc) {
     printf("%s %d szt. ", nazwa, ilosc);
 }
 
+void zwroc_produkty_do_podajnikow(Klient *klient, Sklep *sklep, int sem_id) {
+    for(int i=0; i<klient->ilosc_zakupow; i++){
+        Produkt *p = &klient->lista_zakupow[i];
+        sem_wait(sem_id, SEM_DISPENSER + p->id);
+        sklep->podajniki[p->id].produkt.ilosc += p->ilosc;
+        sem_post(sem_id, SEM_DISPENSER + p->id);
+    }
+}
+
 // Losowanie listy zakupów dla klienta
 void losuj_liste_zakupow(Sklep *sklep, Produkt lista_zakupow[], int *liczba_produktow)
 {

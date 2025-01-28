@@ -43,7 +43,7 @@ void monitoruj_kasy(Sklep *sklep, int sem_id) {
         }
         sem_post(sem_id, SEM_CASHIER_MUTEX + 2);
 
-        //sleep(1);
+        sleep(1);
     }
 }
 
@@ -100,7 +100,7 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
                 }
                 sem_post(sem_id, SEM_STATS_MUTEX);
 
-                //sleep(3);  // Symulacja obsługi klienta
+                sleep(3);  // Symulacja obsługi klienta
                 
                 printf("Kasa %d: Obsłużono klienta %d, suma zakupów: %.2f zł\n",
                        kasa_id + 1, sklep->klienci[klient_index].klient_id, suma);
@@ -120,7 +120,7 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
                 printf("Kasa %d: Zamykam się, brak klientów w kolejce.\n", kasa_id + 1);
                 break;
             }
-            //usleep(100000);
+            usleep(100000);
         }
     }
 
@@ -128,7 +128,8 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
 }
 
 int main() {
-    setup_signal_handlers(cleanup_handler, evacuation_handler);
+    signal(SIGINT, cleanup_handler);
+    signal(SIGTERM, cleanup_handler);
 
     int shm_id;
     initialize_shm_sklep(&shm_id, &sklep, SKLEP_KEY);
@@ -142,6 +143,7 @@ int main() {
     for (int i = 0; i < MAX_KASJEROW; i++) {
         pid_t pid = fork();
         if (pid == 0) {
+            signal(SIGUSR1, evacuation_handler);
             kasa_id = i;
             obsluz_klienta(sklep, i, sem_id);
             exit(0);

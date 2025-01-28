@@ -20,9 +20,11 @@ Kosz *kosz;
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną i usuwa semafory oraz kolejki komunikatów
 void cleanup(int signum) {
 
-    while(wait(NULL) > 0);
+    
     //sleep(1);
     printf(RED "\nZamykanie sklepu...\n" RESET);
+
+    while(wait(NULL) > 0);
 
     // Czyszczenie zasobów
     shmdt(sklep);
@@ -43,46 +45,48 @@ void cleanup(int signum) {
 
 // Obsługa sygnału ewakuacji
 void evacuation_handler(int signum) {
+    while(wait(NULL) > 0);
     cleanup(signum);
 }
 
 int main() {
     setup_signal_handlers(cleanup, evacuation_handler);
     signal(SIGUSR2, cleanup);
-    // Tworzenie pamięci współdzielonej dla sklepu
 
+    // Tworzenie pamięci współdzielonej dla sklepu
     initialize_shm_sklep(&shm_id, &sklep, SKLEP_KEY);
 
     // Tworzenie semaforów
-    init_semaphores(&sem_id, SEM_KEY, 22);
+    init_semaphores(&sem_id, SEM_KEY, 23);
 
     // Inicjalizacja semaforów
-    init_semaphore_values(sem_id, 22);
+    init_semaphore_values(sem_id, 23);
 
     // Inicjalizacja struktury sklepu
     sklep->ilosc_klientow = 0;
     sklep->inwentaryzacja=0;
     init_produkty(sklep);
     sklep->sklep_zamkniety = 0;
+    sklep->ewakuacja = 0;
 
     // Uruchamianie procesów
-    pid_t kierownik_pid, piekarz_pid, kasjer_pid, klient_pid;
 
-    if ((kierownik_pid = fork()) == 0) {
+    if (fork() == 0) {
         execl("./kierownik", "./kierownik", NULL);
     }
 
-    if ((piekarz_pid = fork()) == 0) {
+    if (fork() == 0) {
         execl("./piekarz", "./piekarz", NULL);
     }
 
-    if ((kasjer_pid = fork()) == 0) {
+    if (fork() == 0) {
         execl("./kasjer", "./kasjer", NULL);
     }
 
-    if ((klient_pid = fork()) == 0) {
+    if (fork() == 0) {
         execl("./klient", "./klient", NULL);
     }
+    while(wait(NULL) > 0);
 
     cleanup(0);
 

@@ -161,18 +161,19 @@ void cleanup_handler(int signum){
 // Obsługa sygnału ewakuacji
 void evacuation_handler(int signum) {
     printf("Kierownik: Rozpoczynam ewakuację sklepu...\n");
-    
-    sem_wait(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
-    while (sklep->ilosc_klientow == 0) {
-        sem_wait(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
+
+    sem_wait(sem_id, SEM_EVACUATION_MUTEX);
+    //sem_wait(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
+    while (1) {
+        //sem_wait(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
         if (sklep->ilosc_klientow == 0) {
-            sem_post(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
+            //sem_post(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
             break;
         }
-        sem_post(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
+        //sem_post(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
         sleep(1);
     }
-
+    sem_post(sem_id, SEM_EVACUATION_MUTEX);
     cleanup_handler(signum);
 }
 
@@ -200,7 +201,7 @@ int main(){
 
 
     // losowanie czy będzie ewakuacja i wysłanie sygnału do ewakuacji
-    int czy_bedzie_ewakuacja = 1;
+    int czy_bedzie_ewakuacja = 2;
     if (czy_bedzie_ewakuacja == 1)
     {
         sleep(rand() % CZAS_PRACY + 10);
