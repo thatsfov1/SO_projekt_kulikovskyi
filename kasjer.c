@@ -89,7 +89,6 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
             sem_post(sem_id, SEM_CASHIER_MUTEX + kasa_id);
 
             if (klient_index != -1) {
-                sem_wait(sem_id, SEM_STATS_MUTEX);
                 float suma = 0;
                 for (int i = 0; i < sklep->klienci[klient_index].ilosc_zakupow; i++) {
                     Produkt *produkt = &sklep->klienci[klient_index].lista_zakupow[i];
@@ -98,7 +97,6 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
                         sklep->kasjerzy[kasa_id].ilosc_sprzedanych[produkt->id] += produkt->ilosc;
                     }
                 }
-                sem_post(sem_id, SEM_STATS_MUTEX);
 
                 //sleep(3);  // Symulacja obsługi klienta
                 

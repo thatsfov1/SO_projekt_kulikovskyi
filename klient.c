@@ -62,7 +62,12 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     klient_index = klient_id % MAX_KLIENTOW;
 
     // Czekanie na wejście do sklepu, jeśli sklep jest pełny to czeka przed wejściem 1s i probuje ponownie
-    while (!ewakuacja_w_trakcie) {
+    while (1) {
+        if (sklep->sklep_zamkniety || ewakuacja_w_trakcie) {
+            printf("Klient %d: Nie mogę wejść, sklep jest zamknięty lub trwa ewakuacja\n", klient_id);
+            cleanup_handler();
+            return;
+        }
         sem_wait(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
         if (sklep->ilosc_klientow < MAX_KLIENTOW) {
             sklep->ilosc_klientow++;
@@ -123,22 +128,20 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     sem_wait(sem_id, SEM_MUTEX_STORE);
     if (sklep->sklep_zamkniety) {
         sem_post(sem_id, SEM_MUTEX_STORE);
-        
-        sem_wait(sem_id, SEM_STATS_MUTEX);
+            printf("Klient %d: Sklep zamknięty, zwracam produkty do podajników i wychodzę\n", klient_id);
+
             for (int i = 0; i < liczba_produktow; i++) {
                 int prod_id = lista_zakupow[i].id;
                 sem_wait(sem_id, SEM_DISPENSER + prod_id);
                 sklep->podajniki[prod_id].produkt.ilosc += lista_zakupow[i].ilosc;
                 sem_post(sem_id, SEM_DISPENSER + prod_id);
             }
-            
+
             sem_wait(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
-            sklep->ilosc_klientow--;
-            printf("Ilosc klientow: %d\n", sklep->ilosc_klientow);
+                sklep->ilosc_klientow--;
+                klient_w_sklepie = 0;
+                printf("Klient %d opuszcza sklep. Liczba klientów: %d\n", klient_id, sklep->ilosc_klientow);
             sem_post(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
-            sem_post(sem_id, SEM_STATS_MUTEX);
-            sem_post(sem_id, SEM_MUTEX_STORE);
-            printf("Klient %d: Sklep zamknięty, zwracam produkty do podajników i wychodzę\n", klient_id);
             
             cleanup_handler();
             return;
@@ -198,27 +201,37 @@ int main() {
     
     while (1) {
         message_buf rbuf;
-        
+    
+        // Sprawdzanie czy sklep nie jest zamknięty lub nie ma ewakuacji
+        sem_wait(sem_id, SEM_MUTEX_STORE);
+        int sklep_zamkniety = sklep->sklep_zamkniety;
+        sem_post(sem_id, SEM_MUTEX_STORE);
+    
+        if (sklep_zamkniety || ewakuacja_w_trakcie) {
+            printf("Proces klientów: Sklep jest zamknięty lub trwa ewakuacja, kończę tworzenie nowych klientów\n");
+            break;
+        }
+
+        // Sprawdzanie komunikatów o zamknięciu
         if (msgrcv(msqid_klient, &rbuf, sizeof(rbuf.mtext), 0, IPC_NOWAIT) != -1) {
             if (strcmp(rbuf.mtext, close_store_message) == 0) {
-                printf("Klienci widzą, że sklep jest zamknięty, już nikt więcej do sklepu nie wejdzie\n");
+                printf("Proces klientów: Otrzymano komunikat o zamknięciu sklepu\n");
                 break;
             }
         }
-        if (!sklep->sklep_zamkniety && !ewakuacja_w_trakcie) {
-            pid_t pid = fork();
-            if (pid == 0) { 
-                srand(time(NULL) ^ (getpid() << 16));
-                zakupy(sklep, sem_id, getpid(), msqid_klient);
-                exit(0);
-            } else if (pid > 0) { 
-                //sleep(rand() % 3 + 1);
-            } else {
-                perror("fork");
-                exit(1);
-            }
-        }
 
+        // Tworzenie nowego klienta
+        pid_t pid = fork();
+        if (pid == 0) { 
+            srand(time(NULL) ^ (getpid() << 16));
+            zakupy(sklep, sem_id, getpid(), msqid_klient);
+            exit(0);
+        } else if (pid > 0) { 
+            //sleep(rand() % 3 + 1);
+        } else {
+            perror("fork");
+            exit(1);
+        }
     }
 
     // Czekanie na zakończenie wszystkich procesów potomnych

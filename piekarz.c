@@ -51,8 +51,9 @@ void wypiekaj_produkty(Sklep *sklep, int sem_id){
                 int wolne_miejsce = MAX_PRODUKTOW_W_PODAJNIKU - sklep->podajniki[i].produkt.ilosc;
                 int do_dodania = (ilosc_wypiekow <= wolne_miejsce) ? ilosc_wypiekow : wolne_miejsce;
 
-                sem_wait(sem_id, SEM_STATS_MUTEX);
                 sklep->podajniki[i].produkt.ilosc += do_dodania;
+                
+                sem_wait(sem_id, SEM_STATS_MUTEX);
                 sklep->statystyki_piekarza.wyprodukowane[i] += do_dodania;
                 sem_post(sem_id, SEM_STATS_MUTEX);
 
