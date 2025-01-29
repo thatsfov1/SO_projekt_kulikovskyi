@@ -43,7 +43,7 @@ void monitoruj_kasy(Sklep *sklep, int sem_id) {
         }
         sem_post(sem_id, SEM_CASHIER_MUTEX + 2);
 
-        sleep(1);
+        //sleep(1);
     }
 }
 
@@ -94,14 +94,14 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
                     }
                 }
 
-                sleep(3);  // Symulacja obsługi klienta
+                sleep(5);  // Symulacja obsługi klienta
                 
                 printf("Kasa %d: Obsłużono klienta %d, suma zakupów: %.2f zł\n",
                        kasa_id + 1, sklep->klienci[klient_index].klient_id, suma);
 
                 message_buf sbuf;
                 sbuf.mtype = sklep->klienci[klient_index].klient_id;
-                strcpy(sbuf.mtext, "Obsłużono");
+                strcpy(sbuf.mtext, klient_rozliczony);
                 msgsnd(msqid, &sbuf, sizeof(sbuf.mtext), 0);
 
                 sem_wait(sem_id, SEM_MUTEX_CUSTOMERS);

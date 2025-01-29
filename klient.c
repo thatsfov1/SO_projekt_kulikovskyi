@@ -48,7 +48,6 @@ void evacuation_handler(int signum){
     // klient opuszcza sklep po odłożeniu produktów do kosza
     sem_wait(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
     sklep->ilosc_klientow--;
-    printf("Ilosc klientow: %d\n", sklep->ilosc_klientow);
     sem_post(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
 
     cleanup_handler();
@@ -140,7 +139,6 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
             sem_wait(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
                 sklep->ilosc_klientow--;
                 klient_w_sklepie = 0;
-                printf("Klient %d opuszcza sklep. Liczba klientów: %d\n", klient_id, sklep->ilosc_klientow);
             sem_post(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
             
             cleanup_handler();

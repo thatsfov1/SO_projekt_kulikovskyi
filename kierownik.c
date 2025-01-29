@@ -79,7 +79,6 @@ void drukuj_inwentaryzacje()
 
 // Wydrukowanie stanu kosza (do którego trafiają produkty podczas ewakuacji)
 void drukuj_kosz() {
-    //sem_wait(sem_id, SEM_BASKET_MUTEX);
     printf("Kierownik: Stan kosza po zamknięciu sklepu:\n");
     for (int i = 0; i < MAX_PRODUKTOW; i++) {
         if (sklep->kosz.produkty[i].ilosc > 0) {
@@ -87,7 +86,6 @@ void drukuj_kosz() {
                    sklep->kosz.produkty[i].ilosc);
         }
     }
-    //sem_post(sem_id, SEM_BASKET_MUTEX);
 }
 
 // Wysłanie komunikatu o decyzji zamknięcia sklepu do wszystkich procesów
