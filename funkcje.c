@@ -5,6 +5,8 @@
 #include <sys/sem.h>
 #include <sys/msg.h>
 #include <sys/ipc.h>
+#include <errno.h>
+#include <signal.h>
 
 // Operacje na semaforach
 void sem_wait(int sem_id, int sem_num) {
@@ -13,6 +15,10 @@ void sem_wait(int sem_id, int sem_num) {
     sem_op.sem_op = -1;
     sem_op.sem_flg = 0;
     if (semop(sem_id, &sem_op, 1) == -1) {
+        if (errno == EINVAL) {
+            extern int semop_wait_invalid_argument;
+            semop_wait_invalid_argument = 1;
+        }
         perror("semop wait");
         exit(1);
     }
@@ -24,9 +30,22 @@ void sem_post(int sem_id, int sem_num) {
     sem_op.sem_op = 1;
     sem_op.sem_flg = 0;
     if (semop(sem_id, &sem_op, 1) == -1) {
+        if (errno == EINVAL) {
+            extern int semop_wait_invalid_argument;
+            semop_wait_invalid_argument = 1;
+        }
         perror("semop post");
         exit(1);
     }
+}
+
+void chld_handler(){
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sigaction));
+    sa.sa_handler = SIG_DFL;
+    sa.sa_flags = SA_NOCLDWAIT;
+
+    sigaction(SIGCHLD, &sa, NULL);
 }
 
 // Inicjalizacja pamięci współdzielonej dla sklepu

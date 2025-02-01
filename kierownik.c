@@ -15,6 +15,7 @@ Sklep *sklep;
 int shm_id;
 int sem_id;
 int msqid;
+int semop_wait_invalid_argument = 0;
 
 // Wydrukowanie stanu podajników
 void drukuj_stan_podajnikow() {

@@ -13,6 +13,7 @@
 int shm_id;
 Sklep *sklep;
 int msqid;
+int semop_wait_invalid_argument = 0;
 
 // funkcja czyszcząca
 void cleanup_handler(int signum){
@@ -80,7 +81,6 @@ void wypiekaj_produkty(Sklep *sklep, int sem_id){
 
 int main(){
     setup_signal_handlers(cleanup_handler, evacuation_handler);
-
     initialize_shm_sklep(&shm_id, &sklep, SKLEP_KEY);
 
     int sem_id = semget(SEM_KEY, 0, 0666);

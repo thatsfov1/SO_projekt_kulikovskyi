@@ -12,6 +12,7 @@ Sklep *sklep;
 int sem_id;
 int sklep_zamkniety = 0;
 int kasa_id;
+int semop_wait_invalid_argument = 0;
 
 void cleanup_handler(int signum) {
     exit(0);
@@ -124,6 +125,7 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
 int main() {
     signal(SIGINT, cleanup_handler);
     signal(SIGTERM, cleanup_handler);
+    chld_handler();
 
     int shm_id;
     initialize_shm_sklep(&shm_id, &sklep, SKLEP_KEY);

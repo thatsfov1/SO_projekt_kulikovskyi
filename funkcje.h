@@ -9,9 +9,13 @@
 #include "struktury.h"
 
 // Deklaracje funkcji
+extern int semop_wait_invalid_argument;
 void sem_wait(int sem_id, int sem_num);
 void sem_post(int sem_id, int sem_num);
+void chld_handler();
 void init_produkty(Sklep *sklep);
+void handle_sigtstp(int signum);
+void handle_sigcont(int signum); 
 void send_acknowledgment_to_kierownik();
 void initialize_shm_sklep(int *shm_id, Sklep **sklep, int key);
 void init_semaphores(int *sem_id, int key, int num_semaphores);

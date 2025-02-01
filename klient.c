@@ -11,6 +11,8 @@
 #include <signal.h>
 #include "struktury.h"
 #include "funkcje.h"
+#include <pthread.h>
+#include <errno.h>
 
 int shm_id;
 int sem_id;
@@ -19,6 +21,9 @@ int klient_index;
 int msqid_klient;
 int klient_w_sklepie= 0;
 int ewakuacja_w_trakcie= 0;
+int semop_wait_invalid_argument = 0;
+pthread_t cleanup_thread;
+
 
 // Funkcja czyszcząca
 void cleanup_handler(){
@@ -37,7 +42,7 @@ void evacuation_handler(int signum){
     }
 
     // Odkładanie produktów do kosza
-    printf("Klient %d: Ewakuacja, Odkładam produkty do kosza i wychodzę.\n", getpid());
+    printf("Klient %d: Ewakuacja, Odkladam produkty do kosza i wychodzę.\n", getpid());
     sem_wait(sem_id, SEM_BASKET_MUTEX);
     for (int i = 0; i < sklep->klienci[klient_index].ilosc_zakupow; i++){
         int prod_id = sklep->klienci[klient_index].lista_zakupow[i].id;
@@ -180,9 +185,19 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
     printf("Klient %d: Opuszczam sklep\n", klient_id);
 }
 
+void* cleanup_thread_func(void* arg) {
+    while (1) {
+        if (semop_wait_invalid_argument) {
+            break;
+        }
+        sleep(1);
+    }
+    return NULL;
+}
+
 int main() {
     setup_signal_handlers(cleanup_handler, evacuation_handler);
-
+    chld_handler();
     initialize_shm_sklep(&shm_id, &sklep, SKLEP_KEY);
 
     sem_id = semget(SEM_KEY, 0, 0666);
@@ -194,8 +209,14 @@ int main() {
     key_t key = ftok("/tmp", msq_klient);
     initialize_message_queue(&msqid_klient, key);
 
+     if (pthread_create(&cleanup_thread, NULL, cleanup_thread_func, NULL) != 0) {
+        perror("pthread_create");
+        exit(1);
+    }
 
     // Tworzenie procesów klientów (od 1 do 3 sekund między wejściami)
+
+
     
     while (1) {
         message_buf rbuf;
@@ -225,6 +246,8 @@ int main() {
             zakupy(sklep, sem_id, getpid(), msqid_klient);
             exit(0);
         } else if (pid > 0) { 
+            int status;
+            waitpid(pid, &status, WNOHANG);
             sleep(rand() % 3 + 1);
         } else {
             perror("fork");
@@ -233,8 +256,10 @@ int main() {
     }
 
     // Czekanie na zakończenie wszystkich procesów potomnych
-    pid_t pid;
-    while ((pid = waitpid(-1, NULL, WNOHANG)) > 0);
+    pid_t wpid;
+    while ((wpid = waitpid(-1, NULL, WNOHANG)) > 0);
+
+    while (wait(NULL) > 0);
     
     // Wysłanie potwierdzenia do kierownika o zakonczeniu zakupów przez klientów
     send_acknowledgment_to_kierownik();

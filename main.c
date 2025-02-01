@@ -16,6 +16,7 @@ int sem_id;
 int kosz_id;
 Sklep *sklep;
 Kosz *kosz;
+int semop_wait_invalid_argument = 0;
 
 // Funkcja czyszcząca, która odłącza pamięć współdzieloną i usuwa semafory oraz kolejki komunikatów
 void cleanup(int signum) {
@@ -50,7 +51,7 @@ void evacuation_handler(int signum) {
 int main() {
     setup_signal_handlers(cleanup, evacuation_handler);
     signal(SIGUSR2, cleanup);
-
+    chld_handler();
     // Tworzenie pamięci współdzielonej dla sklepu
     initialize_shm_sklep(&shm_id, &sklep, SKLEP_KEY);
 
