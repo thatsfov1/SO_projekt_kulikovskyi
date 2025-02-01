@@ -16,6 +16,30 @@ int shm_id;
 int sem_id;
 int msqid;
 int semop_wait_invalid_argument = 0;
+time_t start_time = 0;
+time_t pause_time = 0;
+int accumulated_time = 0;
+
+void handle_sigtstp(int signum) {
+    if (start_time != 0) {
+        pause_time = time(NULL);
+        printf("\nKierownik: Sklep wstrzymany po %d sekundach działania\n", 
+               (int)(pause_time - start_time) + accumulated_time);
+    }
+    signal(SIGTSTP, SIG_DFL);
+    raise(SIGTSTP);
+}
+
+// Handler dla SIGCONT (fg)
+void handle_sigcont(int signum) {
+    if (pause_time != 0) {
+        accumulated_time += pause_time - start_time;
+        start_time = time(NULL);
+        printf("Kierownik: Sklep wznawia działanie, pozostało %d sekund\n", 
+               CZAS_PRACY - accumulated_time);
+    }
+    signal(SIGTSTP, handle_sigtstp);
+}
 
 // Wydrukowanie stanu podajników
 void drukuj_stan_podajnikow() {
@@ -182,6 +206,8 @@ void inventory_handler(int signum) {
 int main(){
     setup_signal_handlers(cleanup_handler, evacuation_handler);
     signal(SIGUSR2, inventory_handler);
+    signal(SIGTSTP, handle_sigtstp);
+    signal(SIGCONT, handle_sigcont);
     srand(time(NULL));
 
     key_t key = ftok("/tmp", msq_kierownik);
@@ -195,12 +221,19 @@ int main(){
 
     initialize_shm_sklep(&shm_id, &sklep, SKLEP_KEY);
 
+    start_time = time(NULL);
+
 
     // losowanie czy będzie ewakuacja i wysłanie sygnału do ewakuacji
     int czy_bedzie_ewakuacja = rand() % 5 + 1;
     if (czy_bedzie_ewakuacja == 1)
     {
-        sleep(rand() % CZAS_PRACY + 10);
+        int czas_do_ewakuacji = rand() % CZAS_PRACY + 10;
+        time_t evacuation_start = time(NULL);
+        
+        while ((time(NULL) - evacuation_start + accumulated_time) < czas_do_ewakuacji) {
+            sleep(1);
+        }
         if (kill(0, SIGUSR1) == 0)
         {
             printf("Sygnał o ewakuację wysłany\n");
@@ -212,7 +245,9 @@ int main(){
     }
 
     // wysłanie komunikatu o zamknięciu sklepu innym procesom 
-    sleep(CZAS_PRACY);
+    while ((time(NULL) - start_time + accumulated_time) < CZAS_PRACY) {
+        sleep(1);
+    }
     send_close_message();
     
     wait_for_acknowledgments();
