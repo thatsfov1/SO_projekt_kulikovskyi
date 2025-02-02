@@ -20,6 +20,7 @@ time_t start_time = 0;
 time_t pause_time = 0;
 int accumulated_time = 0;
 
+
 void handle_sigtstp(int signum) {
     if (start_time != 0) {
         pause_time = time(NULL);
@@ -118,7 +119,6 @@ void send_close_message()
 {
     sem_wait(sem_id, SEM_STORE_CLOSE);
     sem_wait(sem_id, SEM_MUTEX_STORE);
-
     sklep->sklep_zamkniety = 1;
     sem_post(sem_id, SEM_MUTEX_STORE);
 
@@ -158,6 +158,7 @@ void wait_for_acknowledgments(){
             if (strcmp(rbuf.mtext, acknowledgment_to_kierownik) == 0)
             {
                 ack_count++;
+                printf("Kierownik: Otrzymano potwierdzenie od procesu %d/5\n", ack_count);
             }
         }
     }
@@ -236,7 +237,11 @@ int main(){
         }
         if (kill(0, SIGUSR1) == 0)
         {
+            sem_wait(sem_id, SEM_MUTEX_STORE);
+            sklep->ewakuacja = 1;
+            sem_post(sem_id, SEM_MUTEX_STORE);
             printf("Sygnał o ewakuację wysłany\n");
+            
         }
         else
         {

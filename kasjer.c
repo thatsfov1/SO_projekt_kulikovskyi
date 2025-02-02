@@ -71,13 +71,11 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
     int msqid;
     initialize_message_queue(&msqid, key);
     message_buf rbuf;
-    int kasa_zamknieta = 0;
 
-    while (!kasa_zamknieta) {
+    while (1) {
+
         sem_wait(sem_id, SEM_MUTEX_STORE);
-        if (sklep->sklep_zamkniety) {
-            kasa_zamknieta = 1;
-        }
+        int zamkniety = sklep->sklep_zamkniety;
         sem_post(sem_id, SEM_MUTEX_STORE);
 
         sem_wait(sem_id, SEM_CASHIER_MUTEX + kasa_id);
@@ -86,6 +84,8 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
             sem_post(sem_id, SEM_CASHIER_MUTEX + kasa_id);
 
             if (klient_index != -1) {
+                sem_wait(sem_id, SEM_MUTEX_CUSTOMERS);
+                if (sklep->klienci[klient_index].klient_id != 0) {
                 float suma = 0;
                 for (int i = 0; i < sklep->klienci[klient_index].ilosc_zakupow; i++) {
                     Produkt *produkt = &sklep->klienci[klient_index].lista_zakupow[i];
@@ -95,29 +95,36 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
                     }
                 }
 
-                sleep(5);  // Symulacja obsługi klienta
+                //sleep(3);  // Symulacja obsługi klienta
                 
-                printf("Kasa %d: Obsłużono klienta %d, suma zakupów: %.2f zł\n",
-                       kasa_id + 1, sklep->klienci[klient_index].klient_id, suma);
-
                 message_buf sbuf;
                 sbuf.mtype = sklep->klienci[klient_index].klient_id;
                 strcpy(sbuf.mtext, klient_rozliczony);
                 msgsnd(msqid, &sbuf, sizeof(sbuf.mtext), 0);
 
-                sem_wait(sem_id, SEM_MUTEX_CUSTOMERS);
+                printf("Kasa %d: Obsłużono klienta %d, suma zakupów: %.2f zł\n",
+                       kasa_id + 1, sklep->klienci[klient_index].klient_id, suma);
+
+                
                 sklep->klienci[klient_index].klient_id = 0;
-                sem_post(sem_id, SEM_MUTEX_CUSTOMERS);
+                
+            }
+            sem_post(sem_id, SEM_MUTEX_CUSTOMERS);
             }
         } else {
             sem_post(sem_id, SEM_CASHIER_MUTEX + kasa_id);
-            if (kasa_zamknieta) {
+            if (zamkniety) {
                 printf("Kasa %d: Zamykam się, brak klientów w kolejce.\n", kasa_id + 1);
                 break;
             }
             usleep(100000);
         }
     }
+
+    sem_wait(sem_id, SEM_QUEUE_MUTEX);
+    sklep->kasjerzy[kasa_id].ilosc_klientow = 0;
+    sklep->kasjerzy[kasa_id].head = sklep->kasjerzy[kasa_id].tail = 0;
+    sem_post(sem_id, SEM_QUEUE_MUTEX);
 
     send_acknowledgment_to_kierownik();
 }
