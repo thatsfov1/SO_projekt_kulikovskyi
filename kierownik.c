@@ -158,7 +158,6 @@ void wait_for_acknowledgments(){
             if (strcmp(rbuf.mtext, acknowledgment_to_kierownik) == 0)
             {
                 ack_count++;
-                printf("Kierownik: Otrzymano potwierdzenie od procesu %d/5\n", ack_count);
             }
         }
     }

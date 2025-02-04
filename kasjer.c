@@ -4,6 +4,7 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <unistd.h>
+#include <signal.h>
 #include <sys/msg.h>
 #include "struktury.h"
 #include "funkcje.h"
@@ -44,7 +45,7 @@ void monitoruj_kasy(Sklep *sklep, int sem_id) {
         }
         sem_post(sem_id, SEM_CASHIER_MUTEX + 2);
 
-        //sleep(1);
+        sleep(1);
     }
 }
 
@@ -95,7 +96,7 @@ void obsluz_klienta(Sklep *sklep, int kasa_id, int sem_id) {
                     }
                 }
 
-                //sleep(3);  // Symulacja obsługi klienta
+                sleep(3);  // Symulacja obsługi klienta
                 
                 message_buf sbuf;
                 sbuf.mtype = sklep->klienci[klient_index].klient_id;

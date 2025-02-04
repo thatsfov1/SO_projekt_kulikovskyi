@@ -23,7 +23,6 @@ void init_semaphore_values(int sem_id, int num_semaphores);
 void initialize_message_queue(int *msqid, int key);
 void init_kosz(Kosz *kosz, Sklep *sklep);
 void drukuj_produkt(const char* nazwa, int ilosc);
-void zwroc_produkty_do_podajnikow(Klient *klient, Sklep *sklep, int sem_id);
 int znajdz_kase_z_najmniejsza_kolejka(Sklep *sklep, int sem_id);
 void losuj_liste_zakupow(Sklep *sklep, Produkt lista_zakupow[], int *liczba_produktow);
 void setup_signal_handlers(void (*cleanup_handler)(int), void (*evacuation_handler)(int));

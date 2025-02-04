@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
+#include <sys/wait.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <errno.h>
@@ -22,8 +23,6 @@ int msqid_klient;
 int klient_w_sklepie= 0;
 int semop_wait_invalid_argument = 0;
 pthread_t cleanup_thread;
-#define MAX_PROBY 10
-
 
 // Funkcja czyszcząca
 void cleanup_handler(){
@@ -96,7 +95,7 @@ void zakupy(Sklep *sklep, int sem_id, int klient_id, int msqid) {
         sem_post(sem_id, SEM_MUTEX_CUSTOMERS_NUMBER);
 
         proby++;
-        //sleep(1);
+        sleep(1);
     }
 
     if (proby == MAX_PROBY) {
@@ -299,7 +298,6 @@ int main() {
 
     // Tworzenie procesów klientów (od 1 do 3 sekund między wejściami)
     while (1) {
-        //message_buf rbuf;
     
         // Sprawdzanie czy sklep nie jest zamknięty lub nie ma ewakuacji
         sem_wait(sem_id, SEM_MUTEX_STORE);
@@ -319,7 +317,7 @@ int main() {
             zakupy(sklep, sem_id, getpid(), msqid_klient);
             exit(0);
         } else if (pid > 0) { 
-            //sleep(rand() % 3 + 1);
+            sleep(rand() % 3 + 1);
         } else {
             perror("fork");
             exit(1);

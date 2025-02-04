@@ -15,12 +15,22 @@ void sem_wait(int sem_id, int sem_num) {
     sem_op.sem_op = -1;
     sem_op.sem_flg = 0;
     if (semop(sem_id, &sem_op, 1) == -1) {
+        extern int semop_wait_invalid_argument;
+        static int error_printed = 0;
         if (errno == EINVAL) {
-            extern int semop_wait_invalid_argument;
+            semop_wait_invalid_argument = 1;
+            if (!error_printed) {
+                perror("semop wait");
+                error_printed = 1;
+            }
+        }else{
+            if (!error_printed) {
+                perror("semop wait (inny)");
+                error_printed = 1;
+            }
             semop_wait_invalid_argument = 1;
         }
-        perror("semop wait");
-        exit(1);
+        return;
     }
 }
 
@@ -30,12 +40,23 @@ void sem_post(int sem_id, int sem_num) {
     sem_op.sem_op = 1;
     sem_op.sem_flg = 0;
     if (semop(sem_id, &sem_op, 1) == -1) {
+        extern int semop_wait_invalid_argument;
+        static int error_printed = 0;
+
         if (errno == EINVAL) {
-            extern int semop_wait_invalid_argument;
+            semop_wait_invalid_argument = 1;
+            if (!error_printed) {
+                perror("semop post");
+                error_printed = 1;
+            }
+        } else {
+            if (!error_printed) {
+                perror("semop post (inny)");
+                error_printed = 1;
+            }
             semop_wait_invalid_argument = 1;
         }
-        perror("semop post");
-        exit(1);
+        return;
     }
 }
 
@@ -138,15 +159,6 @@ void send_acknowledgment_to_kierownik() {
 
 void drukuj_produkt(const char* nazwa, int ilosc) {
     printf("%s %d szt. ", nazwa, ilosc);
-}
-
-void zwroc_produkty_do_podajnikow(Klient *klient, Sklep *sklep, int sem_id) {
-    for(int i=0; i<klient->ilosc_zakupow; i++){
-        Produkt *p = &klient->lista_zakupow[i];
-        sem_wait(sem_id, SEM_DISPENSER + p->id);
-        sklep->podajniki[p->id].produkt.ilosc += p->ilosc;
-        sem_post(sem_id, SEM_DISPENSER + p->id);
-    }
 }
 
 // Losowanie listy zakupów dla klienta

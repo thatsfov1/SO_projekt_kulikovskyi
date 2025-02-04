@@ -10,6 +10,7 @@
 #define PRAG_OTWARCIA_KASY3 10
 #define MAX_PRODUKTOW_W_PODAJNIKU 15
 #define CZAS_PRACY 15
+#define MAX_PROBY 10
 
 // Klucze do procedur
 #define SKLEP_KEY 1234
@@ -49,7 +50,6 @@
 // Kolory
 #define RED "\033[31m"
 #define GREEN "\033[32m"
-#define YELLOW "\033[33m"
 #define BLUE "\033[34m"
 #define RESET "\033[0m"
 
